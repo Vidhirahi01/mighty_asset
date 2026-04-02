@@ -150,14 +150,13 @@ export default function UsersScreen() {
                         />
                     </View>
                     <Pressable
-                        onPress={() => setShowCreateForm(true)}
+                        onPress={() => setShowCreateForm(true)}  
                         className="bg-primary rounded-xl w-11 h-11 items-center justify-center"
                     >
                         <Plus size={20} color="#ffffff" />
                     </Pressable>
                 </View>
 
-                {/* Department filters */}
                 <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}

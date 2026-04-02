@@ -19,7 +19,7 @@ export const getRoleBasedRoute = (role: string | undefined): string => {
             return "/(tabs)/";
     }
 };
-
+   
 /**
  * Gets the appropriate navigation route based on user role and department
  * @param role - User's role

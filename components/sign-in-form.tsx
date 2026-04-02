@@ -31,14 +31,14 @@ export function SignInForm() {
 
   const onSubmit = async () => {
     try {
-      console.log("🔐 Login attempt with email:", email);
+      console.log("Login attempt with email:", email);
       const user = await loginUser(email, password);
 
-      console.log("📊 User object:", user);
-      console.log("🔑 password_reset value:", user?.password_reset);
+      console.log("User object:", user);
+      console.log(" password_reset value:", user?.password_reset);
 
       if (user?.password_reset === true) {
-        console.log("🔄 User NEEDS password reset - routing to reset screen");
+        console.log(" User NEEDS password reset - routing to reset screen");
         // Route to password reset screen
         router.replace({
           pathname: "/(auth)/reset-password",
@@ -48,11 +48,11 @@ export function SignInForm() {
         console.log("✅ User does NOT need password reset - routing to dashboard");
         // Route to role-based dashboard
         const destination = getRoleBasedRoute(user.role);
-        console.log("📍 Destination route:", destination);
+        console.log(" Destination route:", destination);
         router.replace(destination as any);
       }
     } catch (err: any) {
-      console.error("❌ Login error:", err);
+      console.error(" Login error:", err);
       Alert.alert("Login failed", err.message);
     }
   }

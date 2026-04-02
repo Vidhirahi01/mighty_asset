@@ -11,6 +11,9 @@ export default function RootLayout() {
                     <Stack.Screen name="(admin)" options={{ headerShown: false }} />
                     <Stack.Screen name="(auth)" options={{ headerShown: false }} />
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(manager)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(technician)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(employee)" options={{ headerShown: false }} />
                 </Stack>
             </BottomSheetModalProvider>
         </GestureHandlerRootView>

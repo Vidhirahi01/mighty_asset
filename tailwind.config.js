@@ -12,7 +12,7 @@ module.exports = {
         foreground: "#1a1a1a",
         input: "#e8e8e8",
         card: "#ffffff",
-        border: "#e0e0e0",
+        border: "#1b72fc",
 
         primary: {
           DEFAULT: "#1b72fc",

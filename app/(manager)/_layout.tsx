@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, LogOut } from 'lucide-react-native';
+import { Home, LogOut, CheckSquare, Package } from 'lucide-react-native';
 import { NAV_THEME } from '@/lib/theme';
 import React, { useState } from 'react';
 import { View, Alert, Pressable } from 'react-native';
@@ -110,6 +110,22 @@ export default function ManagerLayout() {
                         title: 'Manager Dashboard',
                         tabBarLabel: 'Dashboard',
                         tabBarIcon: ({ color }) => <Home size={20} color={color} />,
+                    }}
+                />
+                <Tabs.Screen
+                    name="approvals"
+                    options={{
+                        title: 'Approvals',
+                        tabBarLabel: 'Approvals',
+                        tabBarIcon: ({ color }) => <CheckSquare size={20} color={color} />,
+                    }}
+                />
+                <Tabs.Screen
+                    name="inventory"
+                    options={{
+                        title: 'Inventory',
+                        tabBarLabel: 'Inventory',
+                        tabBarIcon: ({ color }) => <Package size={20} color={color} />,
                     }}
                 />
             </Tabs>
