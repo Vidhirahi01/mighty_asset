@@ -8,12 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import React from 'react';
-import { Alert, Pressable, type TextInput, View, ScrollView, ActivityIndicator } from 'react-native';
+import { Alert, Pressable, type TextInput, View, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { FlatList } from 'react-native-gesture-handler';
 import { createUser, generateTemporaryPassword } from '@/services/user.service';
 import { storeTempPassword } from '@/lib/localStorage';
 import { ChevronDown, X, Copy, RefreshCw } from 'lucide-react-native';
-import BottomSheet, { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 
 interface CreateUserFormProps {
     isVisible: boolean;
@@ -96,7 +96,7 @@ export function CreateUserForm({ isVisible, onClose, onSuccess }: CreateUserForm
 
         setLoading(true);
         try {
-            console.log("Calling createUser with:", { name, email, role, department }); 
+            console.log("Calling createUser with:", { name, email, role, department });
             const result = await createUser({
                 name: name.trim(),
                 email: email.trim(),
@@ -151,8 +151,14 @@ export function CreateUserForm({ isVisible, onClose, onSuccess }: CreateUserForm
             backgroundStyle={{ backgroundColor: '#f8f9fa' }}
             handleIndicatorStyle={{ backgroundColor: '#1b72fc' }}
             backdropComponent={renderBackdrop}
+            keyboardBehavior="extend"
+            keyboardBlurBehavior="restore"
         >
-            <BottomSheetView className="flex-1 bg-background px-4 pt-4">
+            <BottomSheetScrollView
+                className="flex-1 bg-background px-4 pt-4"
+                keyboardShouldPersistTaps="handled"
+                scrollEnabled={true}
+            >
                 <View className="flex-row items-center justify-between mb-6">
                     <CardTitle className="text-foreground font-bold text-2xl">Create New User</CardTitle>
                     <Pressable onPress={handleClose} className="p-2">
@@ -160,7 +166,7 @@ export function CreateUserForm({ isVisible, onClose, onSuccess }: CreateUserForm
                     </Pressable>
                 </View>
 
-                <View className="gap-5">
+                <View className="gap-5 pb-32">
                     {/* Name Field */}
                     <View className="gap-2">
                         <Label htmlFor="name" className="text-foreground font-semibold">Full Name</Label>
@@ -331,7 +337,7 @@ export function CreateUserForm({ isVisible, onClose, onSuccess }: CreateUserForm
                         <Text className="text-foreground font-bold text-base">Cancel</Text>
                     </Button>
                 </View>
-            </BottomSheetView>
+            </BottomSheetScrollView>
         </BottomSheetModal>
     );
 }

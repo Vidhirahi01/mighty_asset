@@ -58,55 +58,61 @@ export function SignInForm() {
   }
 
   return (
-    <View className="gap-6 ">
-      <Card className="bg-card sm:border-border border border-border rounded-xl shadow-md">
-        <CardHeader>
-          <CardTitle className="text-center text-foreground font-bold text-2xl sm:text-left">MightyAsset</CardTitle>
-          <CardDescription className="text-center text-foreground/70 sm:text-left mt-1">
-            Welcome back! Sign in to your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="gap-6">
-          <View className="gap-6">
-            <View className="gap-2">
-              <Label htmlFor="email" className="text-foreground font-semibold">Email Address</Label>
-              <Input
-                id="email"
-                placeholder="you@example.com"
-                keyboardType="email-address"
-                autoComplete="email"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-                onSubmitEditing={onEmailSubmitEditing}
-                returnKeyType="next"
-                submitBehavior="submit"
-                className="bg-accent-100 border border-border text-foreground placeholder:text-foreground/40 rounded-lg px-4 py-3"
-              />
-            </View>
-            <View className="gap-2">
-              <View className="flex-row items-center">
-                <Label htmlFor="password" className="text-foreground font-semibold">Password</Label>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+    >
+      <View className="gap-6">
+        <Card className="bg-card sm:border-border border border-border rounded-xl shadow-md">
+          <CardHeader>
+            <CardTitle className="text-center text-foreground font-bold text-2xl sm:text-left">MightyAsset</CardTitle>
+            <CardDescription className="text-center text-foreground/70 sm:text-left mt-1">
+              Welcome back! Sign in to your account
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="gap-6">
+            <View className="gap-6">
+              <View className="gap-2">
+                <Label htmlFor="email" className="text-foreground font-semibold">Email Address</Label>
+                <Input
+                  id="email"
+                  placeholder="you@example.com"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
+                  onSubmitEditing={onEmailSubmitEditing}
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  className="bg-accent-100 border border-border text-foreground placeholder:text-foreground/40 rounded-lg px-4 py-3"
+                />
               </View>
-              <Input
-                ref={passwordInputRef}
-                id="password"
-                secureTextEntry
-                placeholder="••••••••"
-                value={password}
-                onChangeText={setPassword}
-                returnKeyType="send"
-                onSubmitEditing={onSubmit}
-                className="bg-accent-100 border border-border text-foreground placeholder:text-foreground/40 rounded-lg px-4 py-3"
-              />
+              <View className="gap-2">
+                <View className="flex-row items-center">
+                  <Label htmlFor="password" className="text-foreground font-semibold">Password</Label>
+                </View>
+                <Input
+                  ref={passwordInputRef}
+                  id="password"
+                  secureTextEntry
+                  placeholder="••••••••"
+                  value={password}
+                  onChangeText={setPassword}
+                  returnKeyType="send"
+                  onSubmitEditing={onSubmit}
+                  className="bg-accent-100 border border-border text-foreground placeholder:text-foreground/40 rounded-lg px-4 py-3"
+                />
+              </View>
+              <Button className="w-full bg-primary rounded-lg " onPress={onSubmit}>
+                <Text className="text-white font-bold text-base">Sign In</Text>
+              </Button>
             </View>
-            <Button className="w-full bg-primary rounded-lg " onPress={onSubmit}>
-              <Text className="text-white font-bold text-base">Sign In</Text>
-            </Button>
-          </View>
 
-        </CardContent>
-      </Card>
-    </View>
+          </CardContent>
+        </Card>
+      </View>
+    </ScrollView>
   );
 }

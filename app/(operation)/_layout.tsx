@@ -1,36 +1,40 @@
-import { Tabs, useRouter } from 'expo-router';
-import { Home, CheckSquare, Package, Gauge, LogOut } from 'lucide-react-native';
-import React from 'react';
-import { View, Pressable, Alert } from 'react-native';
-import { useTabScreenOptions } from '@/hooks/useTabScreenOptions';
-import { useTheme } from '@react-navigation/native';
-import { useAuthStore } from '@/store/authStore';
+import { Tabs } from 'expo-router';
+import { Home, LogOut, CheckSquare, Package, Gauge } from 'lucide-react-native';
+import { NAV_THEME } from '@/lib/theme';
+import React, { useState } from 'react';
+import { View, Alert, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
+import { supabase } from '@/lib/supabase';
 
-export default function ManagerLayout() {
-    const baseScreenOptions = useTabScreenOptions();
-    const { colors } = useTheme();
+export default function OperationLayout() {
+    const { colors } = NAV_THEME;
     const router = useRouter();
-    const { logout, isLoading } = useAuthStore();
+    const [loggingOut, setLoggingOut] = useState(false);
 
     const handleLogout = async () => {
-        Alert.alert('Logout', 'Are you sure you want to logout?', [
-            {
-                text: 'Cancel',
-                style: 'cancel',
-            },
-            {
-                text: 'Logout',
-                onPress: async () => {
-                    try {
-                        await logout();
-                        router.replace('/(auth)/login-screen');
-                    } catch (error) {
-                        Alert.alert('Error', 'Failed to logout');
-                    }
+        try {
+            Alert.alert('Logout', 'Are you sure you want to logout?', [
+                {
+                    text: 'Cancel',
+                    onPress: () => { },
+                    style: 'cancel',
                 },
-                style: 'destructive',
-            },
-        ]);
+                {
+                    text: 'Logout',
+                    onPress: async () => {
+                        setLoggingOut(true);
+                        await supabase.auth.signOut();
+                        router.replace('/(auth)/login-screen');
+                    },
+                    style: 'destructive',
+                },
+            ]);
+        } catch (error) {
+            Alert.alert('Error', 'Failed to logout');
+            console.error(error);
+        } finally {
+            setLoggingOut(false);
+        }
     };
 
     return (
@@ -119,16 +123,8 @@ export default function ManagerLayout() {
                     ),
 
                     headerRight: () => (
-                        <Pressable
-                            onPress={handleLogout}
-                            disabled={isLoading}
-                            className="mr-4 p-2"
-                        >
-                            <LogOut
-                                size={20}
-                                color={colors.primary}
-                                strokeWidth={2}
-                            />
+                        <Pressable onPress={handleLogout} disabled={loggingOut} className="mr-4 p-2">
+                            <LogOut size={20} color={colors.primary} strokeWidth={2} />
                         </Pressable>
                     ),
                 }}

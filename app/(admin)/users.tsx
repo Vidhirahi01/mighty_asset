@@ -1,5 +1,3 @@
-import { Button } from '@/components/ui/button';
-import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Plus, ChevronDown, Save, X, Search } from 'lucide-react-native';
 import { Text, View, ScrollView, FlatList, Pressable, Alert, ActivityIndicator } from 'react-native';
@@ -317,20 +315,20 @@ export default function UsersScreen() {
                         </View>
 
                         {/* Save */}
-                        <Button
-                            className="w-full bg-primary rounded-xl py-3 flex-row items-center justify-center gap-2"
+                        <Pressable
                             onPress={handleSaveUser}
                             disabled={updating}
+                            className="w-full bg-primary rounded-xl py-3 flex-row items-center justify-center gap-2"
                         >
                             {updating ? (
                                 <ActivityIndicator color="#ffffff" />
                             ) : (
                                 <>
-                                    <Icon as={Save} color='#ffffff' size={18} />
+                                    <Save size={18} color='#ffffff' />
                                     <Text className="text-white font-bold">Save Changes</Text>
                                 </>
                             )}
-                        </Button>
+                        </Pressable>
                     </View>
                 )}\n            </ScrollView>
             {/* Spacer for bottom tab bar */}
