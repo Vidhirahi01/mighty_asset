@@ -319,7 +319,7 @@ export default function ManagerDashboard() {
         : ASSETS;
 
     return (
-        <ScrollView className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 bg-background pb-24" showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
                 <FlatList
                     data={STATS}
@@ -404,7 +404,7 @@ export default function ManagerDashboard() {
                     <CardHeader>
                         <CardTitle className="text-foreground text-lg flex-row items-center ">
                             <AlertTriangle size={20} color="#ef4444" strokeWidth={2} />
-                            <View className='w-2'/>                            
+                            <View className='w-2' />
                             <Text >Inventory Alerts</Text>
                         </CardTitle>
                         <CardDescription className="text-foreground/60">

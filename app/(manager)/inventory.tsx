@@ -146,7 +146,7 @@ function LowStockCard({ item }: { item: LowStockItem }) {
 
 export default function InventoryScreen() {
     return (
-        <ScrollView className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 bg-background pb-24" showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
                 {/* Stats Cards */}
                 <FlatList

@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, LogOut, CheckSquare, Package } from 'lucide-react-native';
+import { Home, LogOut, CheckSquare, Package, Gauge } from 'lucide-react-native';
 import { NAV_THEME } from '@/lib/theme';
 import React, { useState } from 'react';
 import { View, Alert, Pressable } from 'react-native';
@@ -75,17 +75,42 @@ export default function ManagerLayout() {
                     headerShadowVisible: false,
 
                     tabBarStyle: {
-                        backgroundColor: colors.card,
-                        borderTopWidth: 1,
-                        borderTopColor: colors.border,
+                        backgroundColor: `${colors.card}e6`,
+                        borderTopWidth: 0,
+                        borderWidth: 1,
+                        borderColor: `${colors.border}40`,
+                        marginBottom: 16,
+                        marginHorizontal: 16,
+                        marginTop: 8,
+                        paddingBottom: 8,
+                        paddingTop: 8,
+                        paddingHorizontal: 12,
+                        borderRadius: 20,
+                        overflow: 'hidden',
+                        position: 'absolute',
+                        bottom: 16,
+                        left: 16,
+                        right: 16,
+                        height: 72,
+                        shadowColor: '#000',
+                        shadowOpacity: 0.12,
+                        shadowRadius: 12,
+                        shadowOffset: { width: 0, height: 4 },
+                        elevation: 6,
                     },
 
                     tabBarActiveTintColor: colors.primary,
-                    tabBarInactiveTintColor: '#999999',
+                    tabBarInactiveTintColor: '#8b8b8b',
 
                     tabBarLabelStyle: {
-                        fontSize: 12,
-                        fontWeight: '600',
+                        fontSize: 11,
+                        fontWeight: '700',
+                        marginTop: 6,
+                    },
+
+                    tabBarItemStyle: {
+                        paddingVertical: 4,
+                        paddingHorizontal: 2,
                     },
 
                     headerLeft: () => (
@@ -126,6 +151,14 @@ export default function ManagerLayout() {
                         title: 'Inventory',
                         tabBarLabel: 'Inventory',
                         tabBarIcon: ({ color }) => <Package size={20} color={color} />,
+                    }}
+                />
+                <Tabs.Screen
+                    name="analytics"
+                    options={{
+                        title: 'Analytics',
+                        tabBarLabel: 'Analytics',
+                        tabBarIcon: ({ color }) => <Gauge size={20} color={color} />,
                     }}
                 />
             </Tabs>

@@ -203,7 +203,7 @@ export default function Dashboard() {
     };
 
     return (
-        <ScrollView className="flex-1 h-full bg-background" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 h-full bg-background pb-24" showsVerticalScrollIndicator={false}>
 
             <View className="px-2 pt-4 pb-2">
                 <Text className="text-foreground text-lg font-bold ml-2 mb-2">Dashboard Overview</Text>
@@ -226,15 +226,15 @@ export default function Dashboard() {
                 </View>
             </View>
             {/* <Card className='p-0 mx-3 mb-3 bg-accent border border-border shadow-md'> */}
-                <FlatList
-                    data={ACTIVITY}
-                    keyExtractor={(item) => item.req}
-                    numColumns={2}
-                    contentContainerStyle={{ paddingHorizontal: 10 }}
-                    columnWrapperStyle={{ justifyContent: 'space-evenly' }}
-                    renderItem={({ item }) => <SystemActivity item={item} />}
-                    scrollEnabled={false}
-                />
+            <FlatList
+                data={ACTIVITY}
+                keyExtractor={(item) => item.req}
+                numColumns={2}
+                contentContainerStyle={{ paddingHorizontal: 10 }}
+                columnWrapperStyle={{ justifyContent: 'space-evenly' }}
+                renderItem={({ item }) => <SystemActivity item={item} />}
+                scrollEnabled={false}
+            />
             {/* </Card> */}
 
             <View className="px-5 py-3">

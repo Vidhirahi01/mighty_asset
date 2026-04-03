@@ -75,17 +75,42 @@ export default function EmployeeLayout() {
                     headerShadowVisible: false,
 
                     tabBarStyle: {
-                        backgroundColor: colors.card,
-                        borderTopWidth: 1,
-                        borderTopColor: colors.border,
+                        backgroundColor: `${colors.card}e6`,
+                        borderTopWidth: 0,
+                        borderWidth: 1,
+                        borderColor: `${colors.border}40`,
+                        marginBottom: 16,
+                        marginHorizontal: 16,
+                        marginTop: 8,
+                        paddingBottom: 8,
+                        paddingTop: 8,
+                        paddingHorizontal: 12,
+                        borderRadius: 20,
+                        overflow: 'hidden',
+                        position: 'absolute',
+                        bottom: 16,
+                        left: 16,
+                        right: 16,
+                        height: 72,
+                        shadowColor: '#000',
+                        shadowOpacity: 0.12,
+                        shadowRadius: 12,
+                        shadowOffset: { width: 0, height: 4 },
+                        elevation: 6,
                     },
 
                     tabBarActiveTintColor: colors.primary,
-                    tabBarInactiveTintColor: '#999999',
+                    tabBarInactiveTintColor: '#8b8b8b',
 
                     tabBarLabelStyle: {
-                        fontSize: 12,
-                        fontWeight: '600',
+                        fontSize: 11,
+                        fontWeight: '700',
+                        marginTop: 6,
+                    },
+
+                    tabBarItemStyle: {
+                        paddingVertical: 4,
+                        paddingHorizontal: 2,
                     },
 
                     headerLeft: () => (

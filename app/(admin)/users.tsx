@@ -104,9 +104,8 @@ export default function UsersScreen() {
     const renderUserItem = ({ item }: { item: User }) => (
         <Pressable
             onPress={() => handleSelectUser(item)}
-            className={`bg-card border rounded-xl p-4 mb-2 flex-row items-center gap-3 ${
-                selectedUser?.id === item.id ? 'border-primary bg-primary/5' : 'border-border'
-            }`}
+            className={`bg-card border rounded-xl p-4 mb-2 flex-row items-center gap-3 ${selectedUser?.id === item.id ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
         >
             {/* Avatar */}
             <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center shrink-0">
@@ -150,7 +149,7 @@ export default function UsersScreen() {
                         />
                     </View>
                     <Pressable
-                        onPress={() => setShowCreateForm(true)}  
+                        onPress={() => setShowCreateForm(true)}
                         className="bg-primary rounded-xl w-11 h-11 items-center justify-center"
                     >
                         <Plus size={20} color="#ffffff" />
@@ -167,15 +166,13 @@ export default function UsersScreen() {
                         <Pressable
                             key={dept}
                             onPress={() => setSelectedDepartment(dept)}
-                            className={`px-3 py-1.5 rounded-lg border ${
-                                selectedDepartment === dept
+                            className={`px-3 py-1.5 rounded-lg border ${selectedDepartment === dept
                                     ? 'bg-primary border-primary'
                                     : 'bg-accent-100 border-border'
-                            }`}
+                                }`}
                         >
-                            <Text className={`text-xs font-semibold ${
-                                selectedDepartment === dept ? 'text-white' : 'text-foreground/70'
-                            }`}>
+                            <Text className={`text-xs font-semibold ${selectedDepartment === dept ? 'text-white' : 'text-foreground/70'
+                                }`}>
                                 {dept}
                             </Text>
                         </Pressable>
@@ -191,7 +188,7 @@ export default function UsersScreen() {
             </View>
 
             {/* List */}
-            <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-5">
+            <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-5 pb-24">
                 {loading ? (
                     <ActivityIndicator size="large" color="#1b72fc" className="mt-10" />
                 ) : filteredUsers.length === 0 ? (

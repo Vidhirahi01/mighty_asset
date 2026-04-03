@@ -5,7 +5,7 @@ import { Wrench, Clock, AlertCircle } from 'lucide-react-native';
 
 export default function TechnicianDashboard() {
     return (
-        <ScrollView className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 bg-background pb-24" showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
                 {/* Assigned Tasks */}
                 <View className="gap-4">
