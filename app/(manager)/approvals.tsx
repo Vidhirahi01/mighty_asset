@@ -156,7 +156,7 @@ export default function ApprovalsScreen() {
     const pendingCount = approvals.filter(a => a.status === 'Pending').length;
 
     return (
-        <ScrollView className="flex-1 bg-background pb-24" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 bg-background " showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
                 {/* Header Cards */}
                 <View className="flex-row gap-2">
@@ -343,6 +343,8 @@ export default function ApprovalsScreen() {
                     </CardContent>
                 </Card>
             </View>
+            {/* Spacer for bottom tab bar */}
+            <View style={{ height: 160 }} />
         </ScrollView>
     );
 }

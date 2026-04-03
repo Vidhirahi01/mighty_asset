@@ -203,7 +203,7 @@ export default function Dashboard() {
     };
 
     return (
-        <ScrollView className="flex-1 h-full bg-background pb-24" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 h-full bg-background pb-65" showsVerticalScrollIndicator={false}>
 
             <View className="px-2 pt-4 pb-2">
                 <Text className="text-foreground text-lg font-bold ml-2 mb-2">Dashboard Overview</Text>
@@ -268,6 +268,8 @@ export default function Dashboard() {
                     scrollEnabled={false}
                 />
             </Card>
+            {/* Spacer for bottom tab bar */}
+            <View style={{ height: 160 }} />
         </ScrollView>
     );
 }

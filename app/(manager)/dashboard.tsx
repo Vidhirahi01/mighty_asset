@@ -319,7 +319,7 @@ export default function ManagerDashboard() {
         : ASSETS;
 
     return (
-        <ScrollView className="flex-1 bg-background pb-24" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
                 <FlatList
                     data={STATS}
@@ -421,6 +421,8 @@ export default function ManagerDashboard() {
                     </CardContent>
                 </Card>
             </View>
+            {/* Spacer for bottom tab bar */}
+            <View style={{ height: 160 }} />
         </ScrollView>
     );
 }

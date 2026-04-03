@@ -167,8 +167,8 @@ export default function UsersScreen() {
                             key={dept}
                             onPress={() => setSelectedDepartment(dept)}
                             className={`px-3 py-1.5 rounded-lg border ${selectedDepartment === dept
-                                    ? 'bg-primary border-primary'
-                                    : 'bg-accent-100 border-border'
+                                ? 'bg-primary border-primary'
+                                : 'bg-accent-100 border-border'
                                 }`}
                         >
                             <Text className={`text-xs font-semibold ${selectedDepartment === dept ? 'text-white' : 'text-foreground/70'
@@ -188,7 +188,7 @@ export default function UsersScreen() {
             </View>
 
             {/* List */}
-            <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-5 pb-24">
+            <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-5 ">
                 {loading ? (
                     <ActivityIndicator size="large" color="#1b72fc" className="mt-10" />
                 ) : filteredUsers.length === 0 ? (
@@ -332,8 +332,9 @@ export default function UsersScreen() {
                             )}
                         </Button>
                     </View>
-                )}
-            </ScrollView>
+                )}\n            </ScrollView>
+            {/* Spacer for bottom tab bar */}
+            <View style={{ height: 160 }} />
 
             <CreateUserForm
                 isVisible={showCreateForm}

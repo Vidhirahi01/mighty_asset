@@ -5,7 +5,7 @@ import { FileText, Calendar, User } from 'lucide-react-native';
 
 export default function EmployeeDashboard() {
     return (
-        <ScrollView className="flex-1 bg-background pb-24" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
                 {/* Employee Overview */}
                 <View className="gap-4">
@@ -50,6 +50,8 @@ export default function EmployeeDashboard() {
                     </Card>
                 </View>
             </View>
+            {/* Spacer for bottom tab bar */}
+            <View style={{ height: 160 }} />
         </ScrollView>
     );
 }

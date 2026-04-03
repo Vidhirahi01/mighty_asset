@@ -320,7 +320,7 @@ export default function AnalyticsScreen() {
     );
 
     return (
-        <ScrollView className="flex-1 bg-background pb-24" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
                 {/* Tab Toggle */}
                 <View className="flex-row gap-2 bg-accent/50 rounded-lg p-1 border border-border/20">
@@ -462,6 +462,8 @@ export default function AnalyticsScreen() {
                     </View>
                 )}
             </View>
+            {/* Spacer for bottom tab bar */}
+            <View style={{ height: 160 }} />
         </ScrollView>
     );
 }
