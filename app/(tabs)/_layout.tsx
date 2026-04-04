@@ -11,20 +11,20 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     ClashGrotesk: require('@/assets/fonts/ClashGrotesk-Regular.otf'),
     'ClashGrotesk-Bold': require('@/assets/fonts/ClashGrotesk-Bold.otf'),
-    'ClashGrotesk-Semibold': require('@/assets/fonts/ClashGrotesk-Semibold.otf'), 
+    'ClashGrotesk-Semibold': require('@/assets/fonts/ClashGrotesk-Semibold.otf'),
   });
 
   if (!loaded) return null;
 
   return (
 
-      <ThemeProvider value={NAV_THEME}>
-    <View className="flex-1 bg-background dark">
-      <Stack screenOptions={{headerShown: false}}/>
-      <PortalHost />
-      <StatusBar style="light" />
-    </View>
-  </ThemeProvider>
+    <ThemeProvider value={NAV_THEME}>
+      <View className="flex-1 bg-background dark">
+        <Stack screenOptions={{ headerShown: false }} />
+        <PortalHost />
+        <StatusBar style="light" />
+      </View>
+    </ThemeProvider>
 
   );
 }

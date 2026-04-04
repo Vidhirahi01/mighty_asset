@@ -45,7 +45,7 @@ export function SignInForm() {
           params: { email, userId: user.id, role: user.role }
         } as any);
       } else {
-        console.log("✅ User does NOT need password reset - routing to dashboard");
+        console.log("User does NOT need password reset - routing to dashboard");
         // Route to role-based dashboard
         const destination = getRoleBasedRoute(user.role);
         console.log(" Destination route:", destination);
