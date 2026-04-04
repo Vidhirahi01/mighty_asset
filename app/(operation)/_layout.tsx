@@ -132,7 +132,7 @@ export default function OperationLayout() {
                 <Tabs.Screen
                     name="dashboard"
                     options={{
-                        title: 'Manager Dashboard',
+                        title: 'Asset Team Dashboard',
                         tabBarLabel: 'Dashboard',
                         tabBarIcon: ({ color }) => <Home size={20} color={color} />,
                     }}

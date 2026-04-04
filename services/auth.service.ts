@@ -27,13 +27,12 @@ export const loginUser = async (email: string, password: string) => {
     console.log("User data fetched:", userData);
     console.log("Password reset flag:", userData?.password_reset);
 
-    // Explicit logging for debugging
     if (userData?.password_reset === true) {
-        console.log("✅ User NEEDS password reset - will redirect to reset screen");
+        console.log("User NEEDS password reset - will redirect to reset screen");
     } else if (userData?.password_reset === false) {
-        console.log("✅ User does NOT need password reset - proceed to dashboard");
+        console.log("User does NOT need password reset - proceed to dashboard");
     } else {
-        console.warn("⚠️ password_reset is unclear:", userData?.password_reset, typeof userData?.password_reset);
+        console.warn("password_reset is unclear:", userData?.password_reset, typeof userData?.password_reset);
     }
 
     return userData;

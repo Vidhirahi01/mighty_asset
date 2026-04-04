@@ -15,6 +15,8 @@ export const getRoleBasedRoute = (role: string | undefined): string => {
             return "/(technician)/dashboard";
         case 'EMPLOYEE':
             return "/(employee)/dashboard";
+        case 'OPERATION':
+            return "/(operation)/dashboard";
         default:
             return "/(tabs)/";
     }
