@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, ScrollView, Pressable, FlatList, TouchableOpacity } from 'react-native';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { Text } from '@/components/ui/text';
 import {
     Activity,
@@ -27,6 +28,8 @@ import {
     PlusIcon,
     ArrowBigLeft,
 } from 'lucide-react-native';
+import { RightDrawer } from '@/components/RightDrawer';
+import { AddAssetForm } from '@/components/Assets/AddAssetForm';
 
 type StatItem = {
     label: string;
@@ -38,7 +41,10 @@ type actions = {
 type PendingAction = {
     id: string;
     title: string;
-    description: string;
+    product_id: string;
+    reportedBy: string;
+    actionType: 'assign' | 'return';
+    actionId: string;
     severity: 'Critical';
     timeStamp: string;
 };
@@ -63,21 +69,30 @@ const PENDING_CRITICAL_ACTIONS: PendingAction[] = [
     {
         id: '1',
         title: 'Asset Movement Authorization Pending',
-        description: 'Dell XPS Laptop requires approval for transfer to Building C',
+        product_id: 'PROD-001',
+        reportedBy: 'John Doe',
+        actionType: 'assign',
+        actionId: 'ASSIGN-001',
         severity: 'Critical',
         timeStamp: '15 mins ago',
     },
     {
         id: '2',
         title: 'High-Value Equipment Under Review',
-        description: '2 MacBook Pro units flagged for audit verification',
+        product_id: 'PROD-002',
+        reportedBy: 'Sarah Johnson',
+        actionType: 'return',
+        actionId: 'RETURN-001',
         severity: 'Critical',
         timeStamp: '32 mins ago',
     },
     {
         id: '3',
         title: 'Return Queue Processing Required',
-        description: '5 devices awaiting final documentation and return confirmation',
+        product_id: 'PROD-003',
+        reportedBy: 'Mike Wilson',
+        actionType: 'return',
+        actionId: 'RETURN-002',
         severity: 'Critical',
         timeStamp: '1 hour ago',
     },
@@ -109,37 +124,58 @@ function MyCard({ item }: { item: StatItem }) {
     );
 }
 
-function PendingActionItem({ action }: { action: PendingAction }) {
+function PendingActionItem({ action, onPress }: { action: PendingAction; onPress?: () => void }) {
+    const getActionLabel = (type: string) => {
+        return type === 'assign' ? 'Assign ID' : 'Return ID';
+    };
+
+    const getActionIdLabel = (type: string, id: string) => {
+        return type === 'assign' ? `ASSIGN: ${id}` : `RETURN: ${id}`;
+    };
+
     return (
-        <Pressable className="mb-3">
-            <Card className="bg-red-50 border border-red-200">
-                <CardContent className="p-4">
-                    <View className="flex-row items-start gap-3">
-                        <View className="pt-1">
-                            <AlertTriangle size={20} color="#ef4444" />
-                        </View>
-                        <View className="flex-1">
-                            <View className="flex-row justify-between items-start mb-1">
-                                <Text className="text-foreground font-semibold flex-1 mr-2">
-                                    {action.title}
+        <View>
+            <Pressable onPress={onPress} className="py-3">
+                <View className="flex-row items-start justify-between px-4">
+                    <View className="flex-1">
+                        <Text className="text-foreground font-semibold text-sm mb-1">
+                            {action.title}
+                        </Text>
+                        <View className="gap-1">
+                            <View className="flex-row items-center gap-2">
+                                <Text className="text-foreground/70 text-xs">Product ID:</Text>
+                                <Text className="text-foreground font-medium text-xs">
+                                    {action.product_id}
                                 </Text>
-                                <View className="bg-red-500 rounded-full px-2 py-1">
-                                    <Text className="text-white text-xs font-bold">
-                                        {action.severity}
-                                    </Text>
-                                </View>
                             </View>
-                            <Text className="text-foreground/70 text-sm mb-2">
-                                {action.description}
-                            </Text>
-                            <Text className="text-foreground/50 text-xs">
-                                {action.timeStamp}
-                            </Text>
+                            <View className="flex-row items-center gap-2">
+                                <Text className="text-foreground/70 text-xs">Reported by:</Text>
+                                <Text className="text-foreground font-medium text-xs">
+                                    {action.reportedBy}
+                                </Text>
+                            </View>
+                            <View className="flex-row items-center gap-2">
+                                <Text className="text-foreground/70 text-xs">
+                                    {getActionLabel(action.actionType)}
+                                </Text>
+                                <Text className="text-blue-600 font-semibold text-xs">
+                                    {getActionIdLabel(action.actionType, action.actionId)}
+                                </Text>
+                            </View>
                         </View>
+                        <Text className="text-foreground/50 text-xs mt-2">
+                            {action.timeStamp}
+                        </Text>
                     </View>
-                </CardContent>
-            </Card>
-        </Pressable>
+                    <View className="bg-red-500 rounded-full px-2.5 py-1 ml-2">
+                        <Text className="text-white text-xs font-bold">
+                            {action.severity}
+                        </Text>
+                    </View>
+                </View>
+            </Pressable>
+            <Separator className="bg-border" />
+        </View>
     );
 }
 
@@ -172,63 +208,104 @@ function QuickActionButton({ onPress, item }: { item: actions; onPress?: () => v
 }
 
 export default function OperationDashboard() {
-    return (
-        <ScrollView
-            className="flex-1 bg-background"
-            showsVerticalScrollIndicator={false}
-        >
-            <View className="p-6 gap-4">
-                {/* Header */}
-                <View className="gap-1 mb-2">
-                    <Text className="text-foreground text-2xl font-bold">Operations Dashboard</Text>
-                    <Text className="text-foreground/60 text-sm">Monitor and manage daily operations</Text>
-                </View>
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-                {/* Stats Grid */}
-                <View className="gap-2">
-                    <View className="flex-row gap-2">
+    const handleQuickActionPress = (label: string) => {
+        switch (label) {
+            case 'Add Asset':
+                setIsDrawerOpen(true);
+                break;
+            case 'Assign Asset':
+                console.log('Assign Asset pressed');
+                break;
+            case 'View all':
+                console.log('View all pressed');
+                break;
+            case 'Inventory':
+                console.log('Inventory pressed');
+                break;
+            default:
+                break;
+        }
+    };
+
+    return (
+        <View className="flex-1 bg-background">
+            <ScrollView
+                className="flex-1"
+                showsVerticalScrollIndicator={false}
+            >
+                <View className="p-6 gap-4">
+                    {/* Header */}
+                    <View className="gap-1 mb-2">
+                        <Text className="text-foreground text-2xl font-bold">Operations Dashboard</Text>
+                        <Text className="text-foreground/60 text-sm">Monitor and manage daily operations</Text>
+                    </View>
+
+                    {/* Stats Grid */}
+                    <View className="gap-2">
+                        <View className="flex-row gap-2">
+                            <FlatList
+                                scrollEnabled={false}
+                                data={STATS}
+                                renderItem={({ item }) => <MyCard item={item} />}
+                                keyExtractor={(item) => item.label}
+                                numColumns={2}
+                                columnWrapperStyle={{ gap: 8 }}
+                            />
+                        </View>
+                    </View>
+
+                    {/* Pending Critical Actions */}
+                    <Card className="bg-card border border-border mt-4">
+                        <CardHeader>
+                            <View className="flex-row items-center gap-2">
+                                <AlertTriangle size={20} color="#ef4444" />
+                                <View className="flex-1">
+                                    <CardTitle className="text-foreground text-lg">
+                                        Pending Critical Actions
+                                    </CardTitle>
+                                    <CardDescription className="text-foreground/60">
+                                        {PENDING_CRITICAL_ACTIONS.length} actions require attention
+                                    </CardDescription>
+                                </View>
+                            </View>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <FlatList
+                                scrollEnabled={false}
+                                data={PENDING_CRITICAL_ACTIONS}
+                                renderItem={({ item }) => <PendingActionItem action={item} />}
+                                keyExtractor={(item) => item.id}
+                            />
+                        </CardContent>
+                    </Card>
+
+                    {/* Quick Action Buttons */}
+                    <View className="mt-4">
                         <FlatList
                             scrollEnabled={false}
-                            data={STATS}
-                            renderItem={({ item }) => <MyCard item={item} />}
+                            data={ACTIONS}
+                            renderItem={({ item }) => (
+                                <QuickActionButton
+                                    item={item}
+                                    onPress={() => handleQuickActionPress(item.label)}
+                                />
+                            )}
                             keyExtractor={(item) => item.label}
                             numColumns={2}
-                            columnWrapperStyle={{ gap: 8 }}
+                            columnWrapperStyle={{ justifyContent: 'space-between' }}
                         />
                     </View>
-                </View>
 
-                {/* Pending Critical Actions */}
-                <View className="mt-4">
-                    <View className="flex-row items-center gap-2 mb-3">
-                        <AlertTriangle size={20} color="#ef4444" />
-                        <Text className="text-foreground text-lg font-bold">
-                            Pending Critical Actions
-                        </Text>
-                    </View>
-                    <FlatList
-                        scrollEnabled={false}
-                        data={PENDING_CRITICAL_ACTIONS}
-                        renderItem={({ item }) => <PendingActionItem action={item} />}
-                        keyExtractor={(item) => item.id}
-                    />
+                    <View style={{ height: 160 }} />
                 </View>
+            </ScrollView>
 
-                {/* Quick Action Buttons */}
-                <View className="mt-4">
-                    <FlatList
-                        scrollEnabled={false}
-                        data={ACTIONS}
-                        renderItem={({ item }) => <QuickActionButton item={item} />}
-                        keyExtractor={(item) => item.label}
-                        numColumns={2}
-                        columnWrapperStyle={{ justifyContent: 'space-between' }}
-                    />
-                </View>
-
-                {/* Spacer for bottom tab bar */}
-                <View style={{ height: 160 }} />
-            </View>
-        </ScrollView>
+            {/* Add Asset Drawer */}
+            <RightDrawer visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>
+                <AddAssetForm onClose={() => setIsDrawerOpen(false)} />
+            </RightDrawer>
+        </View>
     );
 }

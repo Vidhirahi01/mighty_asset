@@ -21,7 +21,7 @@ interface CreateUserFormProps {
     onSuccess?: () => void;
 }
 
-export function CreateUserForm({ isVisible, onClose, onSuccess }: CreateUserFormProps) {
+export default function CreateUserForm({ isVisible, onClose, onSuccess }: CreateUserFormProps) {
     const bottomSheetModalRef = useRef<BottomSheetModal>(null);
     const snapPoints = ['50%', '90%'];
 

@@ -32,7 +32,5 @@ export const getRoleBasedRouteWithDepartment = (
     role: string | undefined,
     department: string | undefined
 ): string => {
-    // For now, using standard role-based routing
-    // Can be extended to handle department-specific screens
     return getRoleBasedRoute(role);
 };

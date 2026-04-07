@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { View, Alert, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { PortalHost } from '@rn-primitives/portal';
 
 export default function OperationLayout() {
     const { colors } = NAV_THEME;
@@ -162,6 +163,7 @@ export default function OperationLayout() {
                     }}
                 />
             </Tabs>
+            <PortalHost />
         </View>
     );
 }
