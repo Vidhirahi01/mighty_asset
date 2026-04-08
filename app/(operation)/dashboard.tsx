@@ -1,44 +1,24 @@
-<<<<<<< HEAD
+
 import React, { useState } from 'react';
 import { View, ScrollView, Pressable, FlatList, TouchableOpacity } from 'react-native';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-=======
-import React from 'react';
-import { View, ScrollView, Pressable, FlatList, TouchableOpacity } from 'react-native';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
->>>>>>> 4176c6b30e27dba0bcbfc25e04f17dcc590ca71c
+
 import { Text } from '@/components/ui/text';
 import {
-    Activity,
     AlertTriangle,
     BadgeAlert,
-    Briefcase,
     CalendarPlus,
-    CheckCircle2,
-    Clock,
-    FileText,
-    Gauge,
     Layers,
     ListTodo,
     MonitorCheck,
-    Plus,
-    Send,
-    TrendingDown,
-    TrendingUp,
     Undo2,
-    Users2,
-    Zap,
     Eye,
-    Package,
     PlusIcon,
     ArrowBigLeft,
 } from 'lucide-react-native';
-<<<<<<< HEAD
 import { RightDrawer } from '@/components/RightDrawer';
 import { AddAssetForm } from '@/components/Assets/AddAssetForm';
-=======
->>>>>>> 4176c6b30e27dba0bcbfc25e04f17dcc590ca71c
 
 type StatItem = {
     label: string;
@@ -50,14 +30,10 @@ type actions = {
 type PendingAction = {
     id: string;
     title: string;
-<<<<<<< HEAD
     product_id: string;
     reportedBy: string;
     actionType: 'assign' | 'return';
     actionId: string;
-=======
-    description: string;
->>>>>>> 4176c6b30e27dba0bcbfc25e04f17dcc590ca71c
     severity: 'Critical';
     timeStamp: string;
 };
@@ -82,42 +58,30 @@ const PENDING_CRITICAL_ACTIONS: PendingAction[] = [
     {
         id: '1',
         title: 'Asset Movement Authorization Pending',
-<<<<<<< HEAD
         product_id: 'PROD-001',
         reportedBy: 'John Doe',
         actionType: 'assign',
         actionId: 'ASSIGN-001',
-=======
-        description: 'Dell XPS Laptop requires approval for transfer to Building C',
->>>>>>> 4176c6b30e27dba0bcbfc25e04f17dcc590ca71c
         severity: 'Critical',
         timeStamp: '15 mins ago',
     },
     {
         id: '2',
         title: 'High-Value Equipment Under Review',
-<<<<<<< HEAD
         product_id: 'PROD-002',
         reportedBy: 'Sarah Johnson',
         actionType: 'return',
         actionId: 'RETURN-001',
-=======
-        description: '2 MacBook Pro units flagged for audit verification',
->>>>>>> 4176c6b30e27dba0bcbfc25e04f17dcc590ca71c
         severity: 'Critical',
         timeStamp: '32 mins ago',
     },
     {
         id: '3',
         title: 'Return Queue Processing Required',
-<<<<<<< HEAD
         product_id: 'PROD-003',
         reportedBy: 'Mike Wilson',
         actionType: 'return',
         actionId: 'RETURN-002',
-=======
-        description: '5 devices awaiting final documentation and return confirmation',
->>>>>>> 4176c6b30e27dba0bcbfc25e04f17dcc590ca71c
         severity: 'Critical',
         timeStamp: '1 hour ago',
     },
@@ -149,7 +113,6 @@ function MyCard({ item }: { item: StatItem }) {
     );
 }
 
-<<<<<<< HEAD
 function PendingActionItem({ action, onPress }: { action: PendingAction; onPress?: () => void }) {
     const getActionLabel = (type: string) => {
         return type === 'assign' ? 'Assign ID' : 'Return ID';
@@ -202,39 +165,6 @@ function PendingActionItem({ action, onPress }: { action: PendingAction; onPress
             </Pressable>
             <Separator className="bg-border" />
         </View>
-=======
-function PendingActionItem({ action }: { action: PendingAction }) {
-    return (
-        <Pressable className="mb-3">
-            <Card className="bg-red-50 border border-red-200">
-                <CardContent className="p-4">
-                    <View className="flex-row items-start gap-3">
-                        <View className="pt-1">
-                            <AlertTriangle size={20} color="#ef4444" />
-                        </View>
-                        <View className="flex-1">
-                            <View className="flex-row justify-between items-start mb-1">
-                                <Text className="text-foreground font-semibold flex-1 mr-2">
-                                    {action.title}
-                                </Text>
-                                <View className="bg-red-500 rounded-full px-2 py-1">
-                                    <Text className="text-white text-xs font-bold">
-                                        {action.severity}
-                                    </Text>
-                                </View>
-                            </View>
-                            <Text className="text-foreground/70 text-sm mb-2">
-                                {action.description}
-                            </Text>
-                            <Text className="text-foreground/50 text-xs">
-                                {action.timeStamp}
-                            </Text>
-                        </View>
-                    </View>
-                </CardContent>
-            </Card>
-        </Pressable>
->>>>>>> 4176c6b30e27dba0bcbfc25e04f17dcc590ca71c
     );
 }
 
@@ -267,7 +197,6 @@ function QuickActionButton({ onPress, item }: { item: actions; onPress?: () => v
 }
 
 export default function OperationDashboard() {
-<<<<<<< HEAD
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     const handleQuickActionPress = (label: string) => {
@@ -367,65 +296,5 @@ export default function OperationDashboard() {
                 <AddAssetForm onClose={() => setIsDrawerOpen(false)} />
             </RightDrawer>
         </View>
-=======
-    return (
-        <ScrollView
-            className="flex-1 bg-background"
-            showsVerticalScrollIndicator={false}
-        >
-            <View className="p-6 gap-4">
-                {/* Header */}
-                <View className="gap-1 mb-2">
-                    <Text className="text-foreground text-2xl font-bold">Operations Dashboard</Text>
-                    <Text className="text-foreground/60 text-sm">Monitor and manage daily operations</Text>
-                </View>
-
-                {/* Stats Grid */}
-                <View className="gap-2">
-                    <View className="flex-row gap-2">
-                        <FlatList
-                            scrollEnabled={false}
-                            data={STATS}
-                            renderItem={({ item }) => <MyCard item={item} />}
-                            keyExtractor={(item) => item.label}
-                            numColumns={2}
-                            columnWrapperStyle={{ gap: 8 }}
-                        />
-                    </View>
-                </View>
-
-                {/* Pending Critical Actions */}
-                <View className="mt-4">
-                    <View className="flex-row items-center gap-2 mb-3">
-                        <AlertTriangle size={20} color="#ef4444" />
-                        <Text className="text-foreground text-lg font-bold">
-                            Pending Critical Actions
-                        </Text>
-                    </View>
-                    <FlatList
-                        scrollEnabled={false}
-                        data={PENDING_CRITICAL_ACTIONS}
-                        renderItem={({ item }) => <PendingActionItem action={item} />}
-                        keyExtractor={(item) => item.id}
-                    />
-                </View>
-
-                {/* Quick Action Buttons */}
-                <View className="mt-4">
-                    <FlatList
-                        scrollEnabled={false}
-                        data={ACTIONS}
-                        renderItem={({ item }) => <QuickActionButton item={item} />}
-                        keyExtractor={(item) => item.label}
-                        numColumns={2}
-                        columnWrapperStyle={{ justifyContent: 'space-between' }}
-                    />
-                </View>
-
-                {/* Spacer for bottom tab bar */}
-                <View style={{ height: 160 }} />
-            </View>
-        </ScrollView>
->>>>>>> 4176c6b30e27dba0bcbfc25e04f17dcc590ca71c
     );
 }
