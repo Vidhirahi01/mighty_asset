@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, ScrollView, FlatList, Pressable } from 'react-native';
+import { View, ScrollView, FlatList, Pressable, Alert, PressableStateCallbackType } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { Text } from '@/components/ui/text';
-import { BadgeCheck, Sigma, UserRoundCheck, Wrench, AlertTriangle } from 'lucide-react-native';
+import { BadgeCheck, Sigma, UserRoundCheck, Wrench, AlertTriangle, ArrowLeft } from 'lucide-react-native';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useRouter } from 'expo-router';
 
 type StatItem = {
     label: string;
@@ -26,6 +28,15 @@ type LowStockItem = {
     status: 'Critical' | 'Warning';
 };
 
+type StockRequest = {
+    id: string;
+    itemName: string;
+    requestType: 'add-stock' | 'update-stock-level' | 'set-reorder-alert';
+    requestedBy: string;
+    requestedAt: string;
+    status: 'Pending';
+};
+
 const STATS: StatItem[] = [
     { label: 'Total Assets', count: 247 },
     { label: 'Available', count: 68 },
@@ -46,6 +57,25 @@ const LOW_STOCK_ITEMS: LowStockItem[] = [
     { id: '2', name: 'Dell XPS 13', category: 'Laptops', currentStock: 4, minimumStock: 5, status: 'Warning' },
     { id: '3', name: 'Sony WH-1000XM5', category: 'Headphones', currentStock: 2, minimumStock: 8, status: 'Critical' },
     { id: '4', name: 'Mechanical RGB Keyboard', category: 'Keyboards', currentStock: 5, minimumStock: 10, status: 'Warning' },
+];
+
+const PENDING_OPERATION_REQUESTS: StockRequest[] = [
+    {
+        id: 'REQ-STK-001',
+        itemName: 'MacBook Pro 16"',
+        requestType: 'add-stock',
+        requestedBy: 'Operation Team',
+        requestedAt: '2026-04-15 09:40',
+        status: 'Pending',
+    },
+    {
+        id: 'REQ-STK-002',
+        itemName: 'Mechanical RGB Keyboard',
+        requestType: 'set-reorder-alert',
+        requestedBy: 'Operation Team',
+        requestedAt: '2026-04-15 10:12',
+        status: 'Pending',
+    },
 ];
 
 function MyCard({ item }: { item: StatItem }) {
@@ -145,9 +175,64 @@ function LowStockCard({ item }: { item: LowStockItem }) {
 }
 
 export default function InventoryScreen() {
+    const { mode } = useLocalSearchParams<{ mode?: string }>();
+    const router = useRouter();
+    const isOperationsMode = mode === 'operations';
+
+    const handleStockActionRequest = (action: StockRequest['requestType']) => {
+        router.push({
+            pathname: '/dashboard',
+            params: {
+                openAddAsset: '1',
+                stockAction: action,
+            },
+        });
+    };
+
+    const handleApprove = (requestId: string) => {
+        Alert.alert('Approved', `Request ${requestId} approved by manager.`);
+    };
+
+    const handleReject = (requestId: string) => {
+        Alert.alert('Rejected', `Request ${requestId} rejected by manager.`);
+    };
+
+    const getRequestTypeLabel = (type: StockRequest['requestType']) => {
+        if (type === 'add-stock') return 'Add Stock';
+        if (type === 'update-stock-level') return 'Update Stock Level';
+        return 'Set Reorder Alert';
+    };
+
+    const quickActionPressStyle = ({ pressed }: PressableStateCallbackType) => ({
+        opacity: pressed ? 0.9 : 1,
+        transform: [{ scale: pressed ? 0.98 : 1 }],
+    });
+
     return (
         <ScrollView className="flex-1 bg-background " showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
+                {isOperationsMode && (
+                    <Pressable
+                        onPress={() => router.replace('/dashboard')}
+                        className="mb-1 self-start rounded-lg border border-border bg-card p-2.5"
+                    >
+                        <ArrowLeft size={16} color="#6b7280" />
+                    </Pressable>
+                )}
+
+                <Card className="bg-card border border-border rounded-xl">
+                    <CardContent className="py-3">
+                        <Text className="text-sm font-semibold text-foreground">
+                            {isOperationsMode ? 'Operations Mode: Request Changes' : 'Manager Mode: Approval View'}
+                        </Text>
+                        <Text className="text-xs text-foreground/60 mt-1">
+                            {isOperationsMode
+                                ? 'You can request stock changes. Manager will approve requests.'
+                                : 'Editing is disabled for managers. Approve or reject operation requests only.'}
+                        </Text>
+                    </CardContent>
+                </Card>
+
                 {/* Stats Cards */}
                 <FlatList
                     data={STATS}
@@ -158,6 +243,71 @@ export default function InventoryScreen() {
                     renderItem={({ item }) => <MyCard item={item} />}
                     scrollEnabled={false}
                 />
+
+                {isOperationsMode && (
+                    <Card className="bg-card border border-border rounded-xl ">
+                        <CardHeader>
+                            <CardTitle className="text-foreground text-lg">Quick Actions</CardTitle>
+                            <CardDescription className="text-foreground/60">Requests go to manager for approval</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <View className="gap-3">
+                                <Pressable
+                                    onPress={() => handleStockActionRequest('add-stock')}
+                                    className="w-full items-center rounded-lg bg-primary px-3 py-3"
+                                    style={quickActionPressStyle}
+                                >
+                                    <Text className="text-white text-xs font-semibold">Add Stock</Text>
+                                </Pressable>
+                                <Pressable
+                                    onPress={() => handleStockActionRequest('update-stock-level')}
+                                    className="w-full items-center rounded-lg bg-primary px-3 py-3"
+                                    style={quickActionPressStyle}
+                                >
+                                    <Text className="text-white text-xs font-semibold">Update Stock Level</Text>
+                                </Pressable>
+                                <Pressable
+                                    onPress={() => handleStockActionRequest('set-reorder-alert')}
+                                    className="w-full items-center rounded-lg bg-primary px-3 py-3"
+                                    style={quickActionPressStyle}
+                                >
+                                    <Text className="text-white text-xs font-semibold">Set Reorder Alert</Text>
+                                </Pressable>
+                            </View>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {!isOperationsMode && (
+                    <Card className="bg-card border border-border rounded-xl">
+                        <CardHeader>
+                            <CardTitle className="text-foreground text-lg">Operation Requests</CardTitle>
+                            <CardDescription className="text-foreground/60">Approve or reject pending stock requests</CardDescription>
+                        </CardHeader>
+                        <CardContent className="gap-2">
+                            {PENDING_OPERATION_REQUESTS.map((request) => (
+                                <View key={request.id} className="rounded-lg border border-border p-3">
+                                    <View className="flex-row items-center justify-between">
+                                        <Text className="text-sm font-semibold text-foreground">{request.itemName}</Text>
+                                        <View className="rounded-full bg-amber-500/20 px-2 py-1">
+                                            <Text className="text-[10px] font-bold text-amber-700">{request.status}</Text>
+                                        </View>
+                                    </View>
+                                    <Text className="text-xs text-foreground/70 mt-1">{getRequestTypeLabel(request.requestType)}</Text>
+                                    <Text className="text-xs text-foreground/60">{request.requestedBy} • {request.requestedAt}</Text>
+                                    <View className="flex-row gap-2 mt-3">
+                                        <Pressable onPress={() => handleApprove(request.id)} className="rounded-md bg-emerald-600 px-3 py-1.5">
+                                            <Text className="text-xs font-semibold text-white">Approve</Text>
+                                        </Pressable>
+                                        <Pressable onPress={() => handleReject(request.id)} className="rounded-md bg-red-600 px-3 py-1.5">
+                                            <Text className="text-xs font-semibold text-white">Reject</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            ))}
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Category-wise Assets */}
                 <Card className="bg-card border border-border rounded-xl">

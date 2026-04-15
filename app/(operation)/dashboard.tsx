@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ScrollView, Pressable, FlatList, TouchableOpacity } from 'react-native';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -17,6 +17,7 @@ import {
     PlusIcon,
     ArrowBigLeft,
 } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RightDrawer } from '@/components/RightDrawer';
 import { AddAssetForm } from '@/components/Assets/AddAssetForm';
 
@@ -37,6 +38,8 @@ type PendingAction = {
     severity: 'Critical';
     timeStamp: string;
 };
+
+type StockActionMode = 'add-stock' | 'update-stock-level' | 'set-reorder-alert';
 
 const STATS: StatItem[] = [
     { label: 'Total Assets', count: 257 },
@@ -198,20 +201,32 @@ function QuickActionButton({ onPress, item }: { item: actions; onPress?: () => v
 
 export default function OperationDashboard() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [stockActionMode, setStockActionMode] = useState<StockActionMode | undefined>(undefined);
+    const router = useRouter();
+    const { openAddAsset, stockAction } = useLocalSearchParams<{ openAddAsset?: string; stockAction?: StockActionMode }>();
+
+    useEffect(() => {
+        if (openAddAsset === '1') {
+            setStockActionMode(stockAction);
+            setIsDrawerOpen(true);
+            router.setParams({ openAddAsset: undefined, stockAction: undefined });
+        }
+    }, [openAddAsset, router, stockAction]);
 
     const handleQuickActionPress = (label: string) => {
         switch (label) {
             case 'Add Asset':
+                setStockActionMode(undefined);
                 setIsDrawerOpen(true);
                 break;
             case 'Assign Asset':
-                console.log('Assign Asset pressed');
+                router.push('/assign-asset');
                 break;
             case 'View all':
-                console.log('View all pressed');
+                router.push('/asset-category');
                 break;
             case 'Inventory':
-                console.log('Inventory pressed');
+                router.push({ pathname: './inventory', params: { mode: 'operations' } });
                 break;
             default:
                 break;
@@ -245,7 +260,6 @@ export default function OperationDashboard() {
                         </View>
                     </View>
 
-                    {/* Pending Critical Actions */}
                     <Card className="bg-card border border-border mt-4">
                         <CardHeader>
                             <View className="flex-row items-center gap-2">
@@ -270,7 +284,6 @@ export default function OperationDashboard() {
                         </CardContent>
                     </Card>
 
-                    {/* Quick Action Buttons */}
                     <View className="mt-4">
                         <FlatList
                             scrollEnabled={false}
@@ -293,7 +306,10 @@ export default function OperationDashboard() {
 
             {/* Add Asset Drawer */}
             <RightDrawer visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>
-                <AddAssetForm onClose={() => setIsDrawerOpen(false)} />
+                <AddAssetForm
+                    onClose={() => setIsDrawerOpen(false)}
+                    presetAction={stockActionMode}
+                />
             </RightDrawer>
         </View>
     );

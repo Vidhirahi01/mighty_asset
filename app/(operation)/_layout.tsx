@@ -168,6 +168,20 @@ export default function OperationLayout() {
                         href: null,
                     }}
                 />
+                <Tabs.Screen
+                    name="assign-asset"
+                    options={{
+                        title: 'Assign Asset',
+                        href: null,
+                    }}
+                />
+                <Tabs.Screen
+                    name="inventory"
+                    options={{
+                        title: 'Inventory',
+                        href: null,
+                    }}
+                />
 
             </Tabs>
             <PortalHost />

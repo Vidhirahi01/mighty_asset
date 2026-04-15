@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, TextInput, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
@@ -17,7 +17,14 @@ import { supabase } from "@/lib/supabase";
 
 type SelectOption = NonNullable<Option>;
 
-export const AddAssetForm = ({ onClose }: { onClose: () => void }) => {
+type StockActionMode = 'add-stock' | 'update-stock-level' | 'set-reorder-alert';
+
+type AddAssetFormProps = {
+    onClose: () => void;
+    presetAction?: StockActionMode;
+};
+
+export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
     const [assetName, setAssetName] = useState("");
     const [category, setCategory] = useState<SelectOption | undefined>(undefined);
     const [brand, setBrand] = useState("");
@@ -32,6 +39,19 @@ export const AddAssetForm = ({ onClose }: { onClose: () => void }) => {
     const [notes, setNotes] = useState("");
     const [imageUrl, setImageUrl] = useState<string | null>(null);
     const assetIdRef = useRef(`AST-${Date.now().toString().slice(-6)}`);
+
+    useEffect(() => {
+        if (!presetAction) return;
+
+        const presetNote =
+            presetAction === 'add-stock'
+                ? 'Inventory request: Add stock.'
+                : presetAction === 'update-stock-level'
+                    ? 'Inventory request: Update stock level.'
+                    : 'Inventory request: Set reorder alert.';
+
+        setNotes((current) => current || presetNote);
+    }, [presetAction]);
 
     const addAsset = async () => {
         try {
