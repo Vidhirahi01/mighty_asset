@@ -139,29 +139,28 @@ export default function OperationLayout() {
                     }}
                 />
                 <Tabs.Screen
-                    name="approvals"
+                    name='assets'
                     options={{
-                        title: 'Approvals',
-                        tabBarLabel: 'Approvals',
-                        tabBarIcon: ({ color }) => <CheckSquare size={20} color={color} />,
+                        title: 'Asset Screen',
+                        tabBarLabel: 'Asset Management',
+                        tabBarIcon: ({ color }) => <Home size={20} color={color} />,
                     }}
                 />
                 <Tabs.Screen
-                    name="inventory"
+                    name="asset-category"
                     options={{
-                        title: 'Inventory',
-                        tabBarLabel: 'Inventory',
-                        tabBarIcon: ({ color }) => <Package size={20} color={color} />,
+                        title: 'Asset Categories',
+                        href: null,
                     }}
                 />
                 <Tabs.Screen
-                    name="analytics"
+                    name="category-assets"
                     options={{
-                        title: 'Analytics',
-                        tabBarLabel: 'Analytics',
-                        tabBarIcon: ({ color }) => <Gauge size={20} color={color} />,
+                        title: 'Category Assets',
+                        href: null,
                     }}
                 />
+
             </Tabs>
             <PortalHost />
         </View>

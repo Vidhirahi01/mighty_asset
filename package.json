@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "dev": "expo start -c ",
+    "dev": "expo start -c --tunnel",
     "android": "expo start -c --android",
     "ios": "expo start -c --ios",
     "web": "expo start -c --web",
@@ -30,6 +30,7 @@
     "expo": "~55.0.9",
     "expo-auth-session": "~55.0.10",
     "expo-constants": "~55.0.7",
+    "expo-file-system": "~55.0.4",
     "expo-font": "~55.0.4",
     "expo-image-picker": "~55.0.16",
     "expo-linking": "~55.0.9",

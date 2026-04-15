@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Alert, Image, Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { supabase } from "@/lib/supabase";
+
+const ASSETS_BUCKET = process.env.EXPO_PUBLIC_SUPABASE_ASSETS_BUCKET ?? "image-asset";
 
 type ImagePickerExampleProps = {
     onUploaded?: (url: string | null) => void;
@@ -78,20 +81,65 @@ export default function ImagePickerExample({ onUploaded }: ImagePickerExamplePro
 const uploadImage = async (imageUri: string) => {
     const fileName = `asset_${Date.now()}.jpg`;
 
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
+    const base64ToArrayBuffer = (base64: string) => {
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
 
-    const { data, error } = await supabase.storage
-        .from("assets-images")
-        .upload(fileName, blob, {
-            contentType: "image/jpeg",
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        return bytes.buffer;
+    };
+
+    try {
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError) {
+            throw new Error(`Auth check failed: ${userError.message}`);
+        }
+
+        const userId = userData.user?.id;
+        if (!userId) {
+            throw new Error("You must be logged in to upload images.");
+        }
+
+        const storagePath = `${userId}/${fileName}`;
+
+        const base64Data = await FileSystem.readAsStringAsync(imageUri, {
+            encoding: 'base64',
         });
 
-    if (error) throw error;
+        // Upload as ArrayBuffer to avoid Blob limitations in React Native runtime.
+        const fileData = base64ToArrayBuffer(base64Data);
 
-    const { data: publicData } = supabase.storage
-        .from("assets-images")
-        .getPublicUrl(data.path);
+        const { data, error } = await supabase.storage
+            .from(ASSETS_BUCKET)
+            .upload(storagePath, fileData, {
+                contentType: "image/jpeg",
+                upsert: false,
+            });
 
-    return publicData.publicUrl;
+        if (error) {
+            if (error.message.toLowerCase().includes("bucket not found")) {
+                throw new Error(
+                    `Storage bucket '${ASSETS_BUCKET}' was not found. Create it in Supabase Storage or set EXPO_PUBLIC_SUPABASE_ASSETS_BUCKET to an existing bucket name.`
+                );
+            }
+            if (error.message.toLowerCase().includes("row-level security policy")) {
+                throw new Error(
+                    `Upload blocked by Supabase Storage RLS policy for bucket '${ASSETS_BUCKET}'. Add an INSERT policy for authenticated users on storage.objects.`
+                );
+            }
+            throw error;
+        }
+
+        const { data: publicData } = supabase.storage
+            .from(ASSETS_BUCKET)
+            .getPublicUrl(data.path);
+
+        return publicData.publicUrl;
+    } catch (uploadError) {
+        console.error("Upload error details:", uploadError);
+        throw new Error(`Failed to upload image: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
+    }
 };
