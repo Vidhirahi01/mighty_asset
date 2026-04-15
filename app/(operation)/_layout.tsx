@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, LogOut, CheckSquare, Package, Gauge } from 'lucide-react-native';
+import { Home, LogOut, CheckSquare, Package, Gauge, CircleAlert } from 'lucide-react-native';
 import { NAV_THEME } from '@/lib/theme';
 import React, { useState } from 'react';
 import { View, Alert, Pressable } from 'react-native';
@@ -143,7 +143,15 @@ export default function OperationLayout() {
                     options={{
                         title: 'Asset Screen',
                         tabBarLabel: 'Asset Management',
-                        tabBarIcon: ({ color }) => <Home size={20} color={color} />,
+                        tabBarIcon: ({ color }) => <Package size={20} color={color} />,
+                    }}
+                />
+                <Tabs.Screen
+                    name="issues"
+                    options={{
+                        title: 'Issues Screen',
+                        tabBarLabel: 'Issues',
+                        tabBarIcon: ({ color }) => <CircleAlert size={20} color={color} />,
                     }}
                 />
                 <Tabs.Screen

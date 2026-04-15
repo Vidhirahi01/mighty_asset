@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react-native';
 
 type AssetStatus = 'available' | 'assigned' | 'inRepair';
 
@@ -31,6 +31,20 @@ type AssetRow = {
 
 const FALLBACK_IMAGE_URL = 'https://picsum.photos/seed/asset-fallback/120/120';
 
+const normalizeCategoryValue = (value: string | null | undefined) => {
+    const normalized = (value ?? '').trim().toLowerCase();
+
+    if (normalized.startsWith('laptop')) return 'laptops';
+    if (normalized.startsWith('monitor')) return 'monitors';
+    if (normalized.startsWith('keyboard')) return 'keyboards';
+    if (normalized.startsWith('cable')) return 'cables';
+    if (normalized === 'mouse' || normalized === 'mice') return 'mouse';
+    if (normalized.startsWith('printer')) return 'printers';
+    if (normalized.startsWith('tablet')) return 'tablets';
+
+    return normalized || 'uncategorized';
+};
+
 const mapStatus = (status: string | null): AssetStatus => {
     const normalized = (status ?? '').toLowerCase();
 
@@ -39,7 +53,15 @@ const mapStatus = (status: string | null): AssetStatus => {
     return 'available';
 };
 
-function AssetDetailCard({ asset }: { asset: AssetItem }) {
+function AssetDetailCard({
+    asset,
+    expanded,
+    onToggle,
+}: {
+    asset: AssetItem;
+    expanded: boolean;
+    onToggle: () => void;
+}) {
     const statusBadgeClass =
         asset.status === 'available'
             ? 'bg-green-500/15'
@@ -50,25 +72,31 @@ function AssetDetailCard({ asset }: { asset: AssetItem }) {
     const statusText = asset.status === 'inRepair' ? 'In Repair' : asset.status[0].toUpperCase() + asset.status.slice(1);
 
     return (
-        <Card className="mb-3 border border-border bg-card">
-            <CardContent className="p-3">
-                <View className="flex-row gap-3">
-                    <Image source={{ uri: asset.imageUrl }} className="h-16 w-16 rounded-lg" resizeMode="cover" />
-                    <View className="flex-1">
-                        <Text className="text-sm font-semibold text-foreground">{asset.name}</Text>
-                        <Text className="text-xs text-muted-foreground">{asset.id}</Text>
-                        <View className={`mt-2 self-start rounded-md px-2 py-1 ${statusBadgeClass}`}>
-                            <Text className="text-xs font-medium text-foreground">{statusText}</Text>
+        <Pressable onPress={onToggle}>
+            <Card className="mb-3 border border-border bg-card">
+                <CardContent className="p-3">
+                    <View className="flex-row gap-3">
+                        <Image source={{ uri: asset.imageUrl }} className="h-16 w-16 rounded-lg" resizeMode="cover" />
+                        <View className="flex-1">
+                            <Text className="text-sm font-semibold text-foreground">{asset.name}</Text>
+                            <Text className="text-xs text-muted-foreground">{asset.id}</Text>
+                            <View className={`mt-2 self-start rounded-md px-2 py-1 ${statusBadgeClass}`}>
+                                <Text className="text-xs font-medium text-foreground">{statusText}</Text>
+                            </View>
                         </View>
+                        {expanded ? <ChevronUp size={18} color="#6b7280" /> : <ChevronDown size={18} color="#6b7280" />}
                     </View>
-                </View>
-                <View className="mt-3 flex-row flex-wrap gap-3">
-                    <Text className="text-xs text-muted-foreground">Brand: <Text className="text-foreground">{asset.brand}</Text></Text>
-                    <Text className="text-xs text-muted-foreground">Model: <Text className="text-foreground">{asset.model}</Text></Text>
-                    <Text className="text-xs text-muted-foreground">Serial: <Text className="text-foreground">{asset.serial}</Text></Text>
-                </View>
-            </CardContent>
-        </Card>
+
+                    {expanded && (
+                        <View className="mt-3 flex-row flex-wrap gap-3">
+                            <Text className="text-xs text-muted-foreground">Brand: <Text className="text-foreground">{asset.brand}</Text></Text>
+                            <Text className="text-xs text-muted-foreground">Model: <Text className="text-foreground">{asset.model}</Text></Text>
+                            <Text className="text-xs text-muted-foreground">Serial: <Text className="text-foreground">{asset.serial}</Text></Text>
+                        </View>
+                    )}
+                </CardContent>
+            </Card>
+        </Pressable>
     );
 }
 
@@ -78,8 +106,10 @@ export default function CategoryAssetsScreen() {
     const [assets, setAssets] = useState<AssetItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [expandedAssetId, setExpandedAssetId] = useState<string | null>(null);
 
     const categoryName = useMemo(() => (typeof category === 'string' && category.trim() ? category.trim() : 'Uncategorized'), [category]);
+    const normalizedCategoryName = useMemo(() => normalizeCategoryValue(categoryName), [categoryName]);
 
     useEffect(() => {
         const fetchAssets = async () => {
@@ -89,12 +119,15 @@ export default function CategoryAssetsScreen() {
 
                 const { data, error } = await supabase
                     .from('asset_table')
-                    .select('id, asset_name, category, brand, model_no, serial_no, status, image_url')
-                    .eq('category', categoryName);
+                    .select('id, asset_name, category, brand, model_no, serial_no, status, image_url');
 
                 if (error) throw error;
 
-                const mapped = ((data as AssetRow[] | null) ?? []).map((row, index) => ({
+                const matchingRows = ((data as AssetRow[] | null) ?? []).filter(
+                    (row) => normalizeCategoryValue(row.category) === normalizedCategoryName
+                );
+
+                const mapped = matchingRows.map((row, index) => ({
                     id: String(row.id ?? `asset-${index}`),
                     name: row.asset_name?.trim() || 'Unnamed Asset',
                     imageUrl: row.image_url?.trim() || FALLBACK_IMAGE_URL,
@@ -105,17 +138,22 @@ export default function CategoryAssetsScreen() {
                 }));
 
                 setAssets(mapped);
+                setExpandedAssetId((current) => {
+                    if (current && mapped.some((asset) => asset.id === current)) return current;
+                    return mapped[0]?.id ?? null;
+                });
             } catch (e) {
                 console.error('Failed to fetch assets by category:', e);
                 setError(e instanceof Error ? e.message : String(e));
                 setAssets([]);
+                setExpandedAssetId(null);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchAssets();
-    }, [categoryName]);
+    }, [normalizedCategoryName]);
 
     return (
         <View className="flex-1 bg-background">
@@ -153,7 +191,14 @@ export default function CategoryAssetsScreen() {
                 )}
 
                 {assets.map((asset) => (
-                    <AssetDetailCard key={asset.id} asset={asset} />
+                    <AssetDetailCard
+                        key={asset.id}
+                        asset={asset}
+                        expanded={expandedAssetId === asset.id}
+                        onToggle={() =>
+                            setExpandedAssetId((current) => (current === asset.id ? null : asset.id))
+                        }
+                    />
                 ))}
             </ScrollView>
         </View>

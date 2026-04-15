@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
-import { AlertTriangle, Search } from 'lucide-react-native';
+import { AlertTriangle } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+
+type AssetStatus = 'available' | 'assigned' | 'inRepair';
 
 type CategorySummary = {
     id: string;
-    rawCategory: string;
+    key: string;
     category: string;
     total: number;
     available: number;
@@ -22,14 +24,31 @@ type AssetRow = {
     status: string | null;
 };
 
-const toTitleCase = (value: string) =>
-    value
-        .split(' ')
-        .filter(Boolean)
-        .map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ');
+const FIXED_CATEGORIES: Array<{ key: string; label: string }> = [
+    { key: 'laptops', label: 'Laptops' },
+    { key: 'monitors', label: 'Monitor' },
+    { key: 'keyboards', label: 'Keyboard' },
+    { key: 'cables', label: 'Cable' },
+    { key: 'mouse', label: 'Mouse' },
+    { key: 'printers', label: 'Printer' },
+    { key: 'tablets', label: 'Tablet' },
+];
 
-const mapStatusBucket = (status: string | null): 'available' | 'assigned' | 'inRepair' => {
+const normalizeCategoryKey = (value: string | null | undefined) => {
+    const normalized = (value ?? '').trim().toLowerCase();
+
+    if (normalized.startsWith('laptop')) return 'laptops';
+    if (normalized.startsWith('monitor')) return 'monitors';
+    if (normalized.startsWith('keyboard')) return 'keyboards';
+    if (normalized.startsWith('cable')) return 'cables';
+    if (normalized === 'mouse' || normalized === 'mice') return 'mouse';
+    if (normalized.startsWith('printer')) return 'printers';
+    if (normalized.startsWith('tablet')) return 'tablets';
+
+    return normalized || 'uncategorized';
+};
+
+const mapStatusBucket = (status: string | null): AssetStatus => {
     const normalized = (status ?? '').toLowerCase();
 
     if (normalized.includes('repair') || normalized.includes('maintenance')) return 'inRepair';
@@ -71,7 +90,6 @@ function CategoryAssetCard({ item, onPress }: { item: CategorySummary; onPress: 
 }
 
 export default function AssetCategoryScreen() {
-    const [query, setQuery] = useState('');
     const [categories, setCategories] = useState<CategorySummary[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -84,27 +102,27 @@ export default function AssetCategoryScreen() {
 
             const { data, error } = await supabase
                 .from('asset_table')
-                .select('id, category, status');
+                .select('id, category, status, asset_name, model_no, brand');
 
             if (error) throw error;
 
             const map = new Map<string, CategorySummary>();
 
-            ((data as AssetRow[] | null) ?? []).forEach((row, index) => {
-                const rawCategory = row.category?.trim() || 'uncategorized';
-                const key = rawCategory.toLowerCase();
+            FIXED_CATEGORIES.forEach((category, index) => {
+                map.set(category.key, {
+                    id: `cat-${index}-${category.key}`,
+                    key: category.key,
+                    category: category.label,
+                    total: 0,
+                    available: 0,
+                    assigned: 0,
+                    inRepair: 0,
+                });
+            });
 
-                if (!map.has(key)) {
-                    map.set(key, {
-                        id: `cat-${index}-${key.replace(/\s+/g, '-')}`,
-                        rawCategory,
-                        category: toTitleCase(rawCategory),
-                        total: 0,
-                        available: 0,
-                        assigned: 0,
-                        inRepair: 0,
-                    });
-                }
+            ((data as AssetRow[] | null) ?? []).forEach((row, index) => {
+                const key = normalizeCategoryKey(row.category);
+                if (!map.has(key)) return;
 
                 const entry = map.get(key)!;
                 entry.total += 1;
@@ -112,7 +130,7 @@ export default function AssetCategoryScreen() {
                 entry[bucket] += 1;
             });
 
-            setCategories(Array.from(map.values()));
+            setCategories(FIXED_CATEGORIES.map((item) => map.get(item.key)!));
         } catch (error) {
             console.error('Failed to fetch categories:', error);
             setLoadError(error instanceof Error ? error.message : String(error));
@@ -126,15 +144,8 @@ export default function AssetCategoryScreen() {
         fetchCategories();
     }, []);
 
-    const filteredCategories = useMemo(() => {
-        const normalized = query.trim().toLowerCase();
-        if (!normalized) return categories;
-
-        return categories.filter((item) => item.category.toLowerCase().includes(normalized));
-    }, [categories, query]);
-
     const quickStats = useMemo(() => {
-        return filteredCategories.reduce(
+        return categories.reduce(
             (acc, item) => {
                 acc.total += item.total;
                 acc.available += item.available;
@@ -143,9 +154,9 @@ export default function AssetCategoryScreen() {
             },
             { total: 0, available: 0, assigned: 0 }
         );
-    }, [filteredCategories]);
+    }, [categories]);
 
-    const lowStockAlerts = filteredCategories.filter((item) => item.available <= 10);
+    const lowStockAlerts = categories.filter((item) => item.total > 0 && item.available <= 2);
 
     return (
         <View className="flex-1 bg-background">
@@ -153,17 +164,6 @@ export default function AssetCategoryScreen() {
                 <View className="mb-4">
                     <Text className="text-2xl font-bold text-foreground">Asset Categories</Text>
                     <Text className="text-sm text-muted-foreground">Browse assets by category with status distribution.</Text>
-                </View>
-
-                <View className="mb-4 flex-row items-center rounded-xl border border-border bg-card px-3">
-                    <Search size={18} color="#7a7a7a" />
-                    <TextInput
-                        value={query}
-                        onChangeText={setQuery}
-                        placeholder="Search category"
-                        placeholderTextColor="#9ca3af"
-                        className="ml-2 flex-1 py-3 text-foreground"
-                    />
                 </View>
 
                 {isLoading && (
@@ -187,7 +187,7 @@ export default function AssetCategoryScreen() {
 
                 <FlatList
                     scrollEnabled={false}
-                    data={filteredCategories}
+                    data={categories}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
                         <CategoryAssetCard
@@ -195,7 +195,7 @@ export default function AssetCategoryScreen() {
                             onPress={() =>
                                 router.push({
                                     pathname: './category-assets',
-                                    params: { category: item.rawCategory },
+                                    params: { category: item.key },
                                 })
                             }
                         />
