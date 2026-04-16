@@ -31,7 +31,7 @@ type LowStockItem = {
 type StockRequest = {
     id: string;
     itemName: string;
-    requestType: 'add-stock' | 'update-stock-level' | 'set-reorder-alert';
+    requestType: 'add-stock' | 'set-reorder-alert';
     requestedBy: string;
     requestedAt: string;
     status: 'Pending';
@@ -199,7 +199,6 @@ export default function InventoryScreen() {
 
     const getRequestTypeLabel = (type: StockRequest['requestType']) => {
         if (type === 'add-stock') return 'Add Stock';
-        if (type === 'update-stock-level') return 'Update Stock Level';
         return 'Set Reorder Alert';
     };
 
@@ -258,13 +257,6 @@ export default function InventoryScreen() {
                                     style={quickActionPressStyle}
                                 >
                                     <Text className="text-white text-xs font-semibold">Add Stock</Text>
-                                </Pressable>
-                                <Pressable
-                                    onPress={() => handleStockActionRequest('update-stock-level')}
-                                    className="w-full items-center rounded-lg bg-primary px-3 py-3"
-                                    style={quickActionPressStyle}
-                                >
-                                    <Text className="text-white text-xs font-semibold">Update Stock Level</Text>
                                 </Pressable>
                                 <Pressable
                                     onPress={() => handleStockActionRequest('set-reorder-alert')}

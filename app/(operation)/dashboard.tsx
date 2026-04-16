@@ -39,7 +39,7 @@ type PendingAction = {
     timeStamp: string;
 };
 
-type StockActionMode = 'add-stock' | 'update-stock-level' | 'set-reorder-alert';
+type StockActionMode = 'add-stock' | 'set-reorder-alert';
 
 const STATS: StatItem[] = [
     { label: 'Total Assets', count: 257 },
