@@ -25,6 +25,7 @@ const CATEGORY_MIN_STOCK_LEVEL: Record<string, number> = {
     monitors: 3,
     keyboards: 10,
     headphones: 5,
+    cables: 30,
     accessories: 20,
 };
 
@@ -238,6 +239,7 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
         { label: "Monitors", value: "monitors" },
         { label: "Keyboards", value: "keyboards" },
         { label: "Headphones", value: "headphones" },
+        { label: "Cables", value: "cables" },
         { label: "Accessories", value: "accessories" },
     ];
 
