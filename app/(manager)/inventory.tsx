@@ -140,7 +140,7 @@ function LowStockCard({ item }: { item: LowStockItem }) {
     };
 
     const shortage = item.minimumStock - item.currentStock;
-    const shortagePercent = Math.round((shortage / item.minimumStock) * 100);
+    const shortagePercent = Math.round((shortage / item.minimumStock) * 50);
 
     return (
         <View className="p-3 rounded-lg mb-2" style={{ backgroundColor: getSeverityColor(item.status) + '10', borderLeftWidth: 4, borderLeftColor: getSeverityColor(item.status) }}>
@@ -326,7 +326,6 @@ export default function InventoryScreen() {
                     </CardContent>
                 </Card>
 
-                {/* Low Stock Items */}
                 <Card className="bg-card border border-destructive/30 rounded-xl">
                     <CardHeader>
                         <CardTitle className="text-foreground text-lg flex-row items-center gap-2">

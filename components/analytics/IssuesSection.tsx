@@ -7,9 +7,17 @@ import { IssueCard, TeamIssue } from './IssueCard';
 
 interface IssuesSectionProps {
     issues: TeamIssue[];
+    mode?: 'manager' | 'operations';
+    onAssignTechnician?: (issueId: string, technicianName: string) => void;
+    onStatusChange?: (issueId: string, status: TeamIssue['status']) => void;
 }
 
-export function IssuesSection({ issues }: IssuesSectionProps) {
+export function IssuesSection({
+    issues,
+    mode = 'manager',
+    onAssignTechnician,
+    onStatusChange,
+}: IssuesSectionProps) {
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
     const filteredIssues = {
@@ -58,6 +66,9 @@ export function IssuesSection({ issues }: IssuesSectionProps) {
                             issue={issue}
                             expandedId={expandedId}
                             onToggleExpand={handleToggleExpand}
+                            mode={mode}
+                            onAssignTechnician={onAssignTechnician}
+                            onStatusChange={onStatusChange}
                         />
                     ))}
                 </>
@@ -73,6 +84,9 @@ export function IssuesSection({ issues }: IssuesSectionProps) {
                             issue={issue}
                             expandedId={expandedId}
                             onToggleExpand={handleToggleExpand}
+                            mode={mode}
+                            onAssignTechnician={onAssignTechnician}
+                            onStatusChange={onStatusChange}
                         />
                     ))}
                 </>
@@ -88,6 +102,9 @@ export function IssuesSection({ issues }: IssuesSectionProps) {
                             issue={issue}
                             expandedId={expandedId}
                             onToggleExpand={handleToggleExpand}
+                            mode={mode}
+                            onAssignTechnician={onAssignTechnician}
+                            onStatusChange={onStatusChange}
                         />
                     ))}
                 </>

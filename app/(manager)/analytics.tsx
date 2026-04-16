@@ -103,7 +103,7 @@ export default function AnalyticsScreen() {
 
                 {/* Issues Tab */}
                 {activeTab === 'issues' && (
-                    <IssuesSection issues={TEAM_ISSUES} />
+                    <IssuesSection issues={TEAM_ISSUES} mode="manager" />
                 )}
 
                 {/* Performance Tab */}

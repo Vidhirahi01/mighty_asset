@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Pressable, Alert, TextInput } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
-import { ChevronDown, ChevronUp, ArrowUp } from 'lucide-react-native';
+import { ChevronDown, ChevronUp } from 'lucide-react-native';
 
 export type TeamIssue = {
     id: string;
@@ -20,12 +20,22 @@ interface IssueCardProps {
     issue: TeamIssue;
     expandedId: string | null;
     onToggleExpand: (id: string) => void;
+    mode?: 'manager' | 'operations';
+    onAssignTechnician?: (issueId: string, technicianName: string) => void;
+    onStatusChange?: (issueId: string, status: TeamIssue['status']) => void;
 }
 
-export function IssueCard({ issue, expandedId, onToggleExpand }: IssueCardProps) {
-    const [escalatingId, setEscalatingId] = useState<string | null>(null);
-    const [escalationReason, setEscalationReason] = useState('');
-    const [escalationLevel, setEscalationLevel] = useState<'Level 1' | 'Level 2' | 'Level 3'>('Level 1');
+const TECHNICIAN_POOL = ['Tech Support', 'IT Operations', 'Field Technician'];
+
+export function IssueCard({
+    issue,
+    expandedId,
+    onToggleExpand,
+    mode = 'manager',
+    onAssignTechnician,
+    onStatusChange,
+}: IssueCardProps) {
+    const [selectedTechnician, setSelectedTechnician] = useState<string>(TECHNICIAN_POOL[0]);
     const isExpanded = expandedId === issue.id;
 
     const getPriorityBgColor = (priority: string) => {
@@ -64,16 +74,11 @@ export function IssueCard({ issue, expandedId, onToggleExpand }: IssueCardProps)
         }
     };
 
-    const handleEscalate = () => {
-        if (!escalationReason.trim()) {
-            Alert.alert('Error', 'Please enter an escalation reason');
-            return;
-        }
+    const isOperationsMode = mode === 'operations';
 
-        Alert.alert('Success', `Issue escalated to ${escalationLevel} with reason: "${escalationReason}"`);
-        setEscalatingId(null);
-        setEscalationReason('');
-    };
+    const canMoveToInProgress = issue.status === 'Open' && Boolean(issue.assignedTo);
+    const canResolve = issue.status === 'In Progress';
+    const canReopen = issue.status === 'Resolved';
 
     return (
         <View className="mb-3">
@@ -127,67 +132,70 @@ export function IssueCard({ issue, expandedId, onToggleExpand }: IssueCardProps)
                         )}
                     </View>
 
-                    {escalatingId === issue.id ? (
-                        <View className="gap-3 mb-3">
+                    {isOperationsMode ? (
+                        <View className="gap-3">
                             <View>
-                                <Text className="text-xs font-semibold text-foreground mb-2">Escalation Level</Text>
+                                <Text className="text-xs font-semibold text-foreground mb-2">Assign Technician</Text>
                                 <View className="flex-row gap-2">
-                                    {(['Level 1', 'Level 2', 'Level 3'] as const).map(level => (
-                                        <Pressable
-                                            key={level}
-                                            onPress={() => setEscalationLevel(level)}
-                                            className={`flex-1 py-2 px-3 rounded-lg border ${escalationLevel === level
-                                                ? 'bg-warning border-warning'
-                                                : 'bg-accent border-border'
-                                                }`}
-                                        >
-                                            <Text className={`text-xs font-semibold text-center ${escalationLevel === level ? 'text-white' : 'text-foreground'}`}>
-                                                {level}
-                                            </Text>
-                                        </Pressable>
-                                    ))}
+                                    {TECHNICIAN_POOL.map((technician) => {
+                                        const isSelected = selectedTechnician === technician;
+                                        return (
+                                            <Pressable
+                                                key={technician}
+                                                onPress={() => setSelectedTechnician(technician)}
+                                                className={`flex-1 rounded-lg border px-2 py-2 ${isSelected ? 'bg-primary border-primary' : 'bg-card border-border'}`}
+                                            >
+                                                <Text className={`text-center text-[11px] font-semibold ${isSelected ? 'text-white' : 'text-foreground'}`}>
+                                                    {technician}
+                                                </Text>
+                                            </Pressable>
+                                        );
+                                    })}
                                 </View>
+                                <Pressable
+                                    onPress={() => onAssignTechnician?.(issue.id, selectedTechnician)}
+                                    className="mt-2 rounded-lg border border-primary bg-primary/10 py-2"
+                                >
+                                    <Text className="text-center text-sm font-semibold text-primary">Assign Selected Technician</Text>
+                                </Pressable>
                             </View>
 
-                            <View>
-                                <Text className="text-xs font-semibold text-foreground mb-2">Escalation Reason</Text>
-                                <TextInput
-                                    placeholder="Explain why this needs escalation..."
-                                    placeholderTextColor="#999"
-                                    value={escalationReason}
-                                    onChangeText={setEscalationReason}
-                                    multiline
-                                    className="bg-background border border-border rounded-lg p-3 text-foreground text-sm min-h-[80px]"
-                                />
-                            </View>
-
-                            <View className="flex-row gap-2">
+                            <View className="gap-2">
+                                <Text className="text-xs font-semibold text-foreground">Progress Actions</Text>
+                                <View className="flex-row gap-2">
+                                    <Pressable
+                                        disabled={!canMoveToInProgress}
+                                        onPress={() => onStatusChange?.(issue.id, 'In Progress')}
+                                        className="flex-1 rounded-lg border border-info bg-info/15 py-2 disabled:opacity-40"
+                                    >
+                                        <Text className="text-center text-sm font-semibold text-info">Start Progress</Text>
+                                    </Pressable>
+                                    <Pressable
+                                        disabled={!canResolve}
+                                        onPress={() => onStatusChange?.(issue.id, 'Resolved')}
+                                        className="flex-1 rounded-lg border border-success bg-success/15 py-2 disabled:opacity-40"
+                                    >
+                                        <Text className="text-center text-sm font-semibold text-success">Mark Resolved</Text>
+                                    </Pressable>
+                                </View>
                                 <Pressable
-                                    onPress={() => {
-                                        setEscalatingId(null);
-                                        setEscalationReason('');
-                                    }}
-                                    className="flex-1 py-2 rounded-lg bg-accent border border-border"
+                                    disabled={!canReopen}
+                                    onPress={() => onStatusChange?.(issue.id, 'Open')}
+                                    className="rounded-lg border border-warning bg-warning/15 py-2 disabled:opacity-40"
                                 >
-                                    <Text className="text-center text-sm font-semibold text-foreground">Cancel</Text>
+                                    <Text className="text-center text-sm font-semibold text-warning">Reopen Issue</Text>
                                 </Pressable>
-                                <Pressable
-                                    onPress={handleEscalate}
-                                    disabled={!escalationReason.trim()}
-                                    className="flex-1 py-2 rounded-lg bg-warning border border-warning disabled:opacity-50"
-                                >
-                                    <Text className="text-center text-sm font-semibold text-white">Escalate</Text>
-                                </Pressable>
+                                {!issue.assignedTo && issue.status === 'Open' && (
+                                    <Text className="text-[11px] text-foreground/60">Assign a technician before moving to In Progress.</Text>
+                                )}
                             </View>
                         </View>
                     ) : (
-                        <Pressable
-                            onPress={() => setEscalatingId(issue.id)}
-                            className="flex-row items-center justify-center gap-2 py-2 rounded-lg bg-warning/20 border border-warning"
-                        >
-                            <ArrowUp size={16} className="text-warning" />
-                            <Text className="text-sm font-semibold text-warning">Escalate Issue</Text>
-                        </Pressable>
+                        <View className="rounded-lg border border-border/40 bg-card/60 p-3">
+                            <Text className="text-xs text-foreground/70">
+                                Manager view is monitor-only. Operations team handles assignment and progress updates.
+                            </Text>
+                        </View>
                     )}
                 </View>
             )}
