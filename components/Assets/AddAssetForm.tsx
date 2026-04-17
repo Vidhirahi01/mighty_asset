@@ -1,62 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, TextInput, View, Alert } from "react-native";
+import { Pressable, ScrollView, View, Alert } from "react-native";
 import { Text } from "@/components/ui/text";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import ImagePickerExample from "@/components/Assets/uploadImage";
-import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectLabel,
-    SelectTrigger,
-    SelectValue,
-    type Option,
-} from "@/components/ui/select";
-import NumberIncrementer from "@/components/ui/numberIncrementer";
 import { supabase } from "@/lib/supabase";
-
-type SelectOption = NonNullable<Option>;
-
-type StockActionMode = 'add-stock' | 'set-reorder-alert';
-
-const CATEGORY_MIN_STOCK_LEVEL: Record<string, number> = {
-    laptops: 2,
-    monitors: 3,
-    keyboards: 10,
-    headphones: 5,
-    cables: 30,
-    accessories: 20,
-};
-
-const DEFAULT_MIN_STOCK_LEVEL = 5;
-
-type AddAssetFormProps = {
-    onClose: () => void;
-    presetAction?: StockActionMode;
-};
-
-type AssetRecord = {
-    id: string | number;
-    asset_name: string;
-    category: string | null;
-    quantity: number | null;
-    minimum_stock_level: number | null;
-    status: string | null;
-    condition: string | null;
-    image_url: string | null;
-    note: string | null;
-};
-
-const getThresholdForAsset = (asset: AssetRecord) => {
-    if (typeof asset.minimum_stock_level === 'number' && asset.minimum_stock_level > 0) {
-        return asset.minimum_stock_level;
-    }
-    if (asset.category && CATEGORY_MIN_STOCK_LEVEL[asset.category]) {
-        return CATEGORY_MIN_STOCK_LEVEL[asset.category];
-    }
-    return DEFAULT_MIN_STOCK_LEVEL;
-};
+import { AddStockModeFields } from "@/components/Assets/add-asset-form/AddStockModeFields";
+import { NewAssetModeFields } from "@/components/Assets/add-asset-form/NewAssetModeFields";
+import {
+    categories,
+    CATEGORY_MIN_STOCK_LEVEL,
+    conditions,
+    DEFAULT_MIN_STOCK_LEVEL,
+    getStockStatus,
+    getThresholdForAsset,
+    type AddAssetFormProps,
+    type AssetRecord,
+    type SelectOption,
+} from "@/components/Assets/add-asset-form/formTypes";
 
 export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
     const isAddStockMode = presetAction === 'add-stock';
@@ -84,12 +42,6 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
     const numericMinimumStockLevel = category?.value
         ? (CATEGORY_MIN_STOCK_LEVEL[category.value] ?? DEFAULT_MIN_STOCK_LEVEL)
         : DEFAULT_MIN_STOCK_LEVEL;
-
-    const getStockStatus = (qty: number, minLevel: number) => {
-        if (qty <= 0) return 'out-of-stock';
-        if (qty <= minLevel) return 'low-stock';
-        return 'in-stock';
-    };
 
     const stockStatus = getStockStatus(numericQuantity, numericMinimumStockLevel);
 
@@ -204,6 +156,11 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
             return;
         }
 
+        if (quantity <= 0) {
+            Alert.alert('Invalid Quantity', 'Please choose refill quantity greater than 0.');
+            return;
+        }
+
         if (!condition?.value) {
             Alert.alert('Missing Condition', 'Please select condition.');
             return;
@@ -234,23 +191,6 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
         onClose();
     };
 
-    const categories: SelectOption[] = [
-        { label: "Laptops", value: "laptops" },
-        { label: "Monitors", value: "monitors" },
-        { label: "Keyboards", value: "keyboards" },
-        { label: "Headphones", value: "headphones" },
-        { label: "Cables", value: "cables" },
-        { label: "Accessories", value: "accessories" },
-    ];
-
-    const conditions: SelectOption[] = [
-        { label: "New", value: "new" },
-        { label: "Used", value: "used" },
-        { label: "Good", value: "good" },
-        { label: "Fair", value: "fair" },
-        { label: "Refurbished", value: "refurbished" },
-    ];
-
     const lowStockAssetOptions: SelectOption[] = lowStockAssets.map((asset) => {
         const qty = Number(asset.quantity ?? 0);
         const minLevel = getThresholdForAsset(asset);
@@ -274,252 +214,56 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
             </View>
 
             {isAddStockMode ? (
-                <>
-                    <View className="mb-5">
-                        <Text className="mb-1 font-semibold text-foreground">Low Stock Asset</Text>
-                        <Select value={selectedLowStockAsset} onValueChange={setSelectedLowStockAsset}>
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder={isLoadingLowStockAssets ? 'Loading low-stock assets...' : 'Select an asset'} />
-                            </SelectTrigger>
-                            <SelectContent insets={{ top: 0, bottom: 0, left: 0, right: 0 }} className="w-full">
-                                <SelectGroup>
-                                    <SelectLabel>Low Stock Assets</SelectLabel>
-                                    {lowStockAssetOptions.map((item) => (
-                                        <SelectItem key={item.value} label={item.label} value={item.value}>
-                                            {item.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </View>
-
-                    {selectedAssetRecord && (
-                        <View className="mb-4 rounded-xl border border-border bg-accent p-3">
-                            {(() => {
-                                const selectedQty = Number(selectedAssetRecord.quantity ?? 0);
-                                const selectedMin = getThresholdForAsset(selectedAssetRecord);
-                                const selectedStatus = getStockStatus(selectedQty, selectedMin);
-                                const selectedStatusLabel = selectedStatus === 'out-of-stock' ? 'Out of Stock' : selectedStatus === 'low-stock' ? 'Low Stock' : 'In Stock';
-                                return (
-                                    <>
-                                        <Text className="text-sm font-semibold text-foreground">Current Quantity: {selectedAssetRecord.quantity ?? 0}</Text>
-                                        <Text className="mt-1 text-xs text-foreground/60">Minimum Threshold: {selectedMin}</Text>
-                                        <Text className="mt-1 text-xs text-foreground/60">Status: {selectedStatusLabel}</Text>
-                                    </>
-                                );
-                            })()}
-                        </View>
-                    )}
-
-                    <View className="mb-4">
-                        <NumberIncrementer
-                            label="Refill Quantity"
-                            value={quantity}
-                            onChange={setQuantity}
-                            min={0}
-                            max={9999}
-                            step={1}
-                        />
-                    </View>
-
-                    <View className="mb-5">
-                        <Text className="mb-1 font-semibold text-foreground">Condition</Text>
-                        <Select value={condition} onValueChange={setCondition}>
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select condition" />
-                            </SelectTrigger>
-                            <SelectContent insets={{ top: 0, bottom: 0, left: 0, right: 0 }} className="w-full">
-                                <SelectGroup>
-                                    <SelectLabel>Condition</SelectLabel>
-                                    {conditions.map((item) => (
-                                        <SelectItem key={item.value} label={item.label} value={item.value}>
-                                            {item.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </View>
-
-                    <TextInput
-                        placeholder="Notes (optional)"
-                        value={notes}
-                        onChangeText={setNotes}
-                        multiline
-                        style={{ textAlignVertical: "top" }}
-                        className="h-28 bg-accent rounded-xl p-3 mb-5 text-foreground"
-                    />
-
-                    <Text className="mb-2 text-xs text-foreground/60">Update image only if needed. Otherwise existing image will remain.</Text>
-                    <ImagePickerExample onUploaded={setImageUrl} />
-                </>
+                <AddStockModeFields
+                    selectedLowStockAsset={selectedLowStockAsset}
+                    setSelectedLowStockAsset={setSelectedLowStockAsset}
+                    isLoadingLowStockAssets={isLoadingLowStockAssets}
+                    lowStockAssetOptions={lowStockAssetOptions}
+                    selectedAssetRecord={selectedAssetRecord}
+                    quantity={quantity}
+                    setQuantity={setQuantity}
+                    condition={condition}
+                    setCondition={setCondition}
+                    conditions={conditions}
+                    notes={notes}
+                    setNotes={setNotes}
+                    setImageUrl={setImageUrl}
+                    getThresholdForAsset={getThresholdForAsset}
+                    getStockStatus={getStockStatus}
+                />
             ) : (
-                <>
-
-                    <TextInput
-                        placeholder="Asset Name"
-                        value={assetName}
-                        onChangeText={setAssetName}
-                        className="text-lg font-semibold border-b border-border mb-4 pb-1 text-foreground"
-                    />
-
-                    <View className="mb-5">
-                        <Text className="mb-1 font-semibold text-foreground">Asset Category</Text>
-                        <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select a category" />
-                            </SelectTrigger>
-                            <SelectContent insets={{ top: 0, bottom: 0, left: 0, right: 0 }} className="w-full">
-                                <SelectGroup>
-                                    <SelectLabel>Asset Categories</SelectLabel>
-                                    {categories.map((item) => (
-                                        <SelectItem key={item.value} label={item.label} value={item.value}>
-                                            {item.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </View>
-
-                    <TextInput
-                        placeholder="Brand/Manufacturer"
-                        value={brand}
-                        onChangeText={setBrand}
-                        className="text-base border-b border-border mb-4 pb-1 text-foreground"
-                    />
-
-                    <TextInput
-                        placeholder="Model No"
-                        value={modelNo}
-                        onChangeText={setModelNo}
-                        className="text-base border-b border-border mb-4 pb-1 text-foreground"
-                    />
-
-                    <TextInput
-                        placeholder="Serial No"
-                        value={serialNo}
-                        onChangeText={setSerialNo}
-                        className="text-base border-b border-border mb-4 pb-1 text-foreground"
-                    />
-
-                    <TextInput
-                        placeholder="Asset ID"
-                        value={assetIdRef.current}
-                        editable={false}
-                        selectTextOnFocus={false}
-                        className="text-base border-b border-border mb-4 pb-1 text-foreground bg-accent"
-                    />
-
-                    <View className="mb-5">
-                        <Text className="mb-1 font-semibold text-foreground">Condition</Text>
-                        <Select value={condition} onValueChange={setCondition}>
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select condition" />
-                            </SelectTrigger>
-                            <SelectContent insets={{ top: 0, bottom: 0, left: 0, right: 0 }} className="w-full">
-                                <SelectGroup>
-                                    <SelectLabel>Condition</SelectLabel>
-                                    {conditions.map((item) => (
-                                        <SelectItem key={item.value} label={item.label} value={item.value}>
-                                            {item.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </View>
-
-                    <View className="mb-4">
-                        <Text className="mb-1 font-semibold text-foreground">Purchase Date</Text>
-                        <Pressable
-                            onPress={() => setShowPurchasePicker(true)}
-                            className="border-b border-border pb-2"
-                        >
-                            <Text className={purchaseDate ? "text-foreground" : "text-muted-foreground"}>
-                                {purchaseDate ? purchaseDate.toISOString().slice(0, 10) : "Select date"}
-                            </Text>
-                        </Pressable>
-                    </View>
-
-                    {showPurchasePicker && (
-                        <DateTimePicker
-                            value={purchaseDate ?? new Date()}
-                            mode="date"
-                            display={Platform.OS === "ios" ? "spinner" : "default"}
-                            onChange={(event: DateTimePickerEvent, date?: Date) => {
-                                if (Platform.OS !== "ios") {
-                                    setShowPurchasePicker(false);
-                                }
-
-                                if (event.type === "set" && date) {
-                                    setPurchaseDate(date);
-                                }
-                            }}
-                        />
-                    )}
-
-                    <TextInput
-                        placeholder="Price"
-                        value={price}
-                        onChangeText={setPrice}
-                        keyboardType="numeric"
-                        className="text-base border-b border-border mb-4 pb-1 text-foreground"
-                    />
-
-                    <View className="mb-4">
-                        <NumberIncrementer
-                            label="Quantity"
-                            value={quantity}
-                            onChange={setQuantity}
-                            min={0}
-                            max={9999}
-                            step={1}
-                        />
-                    </View>
-
-                    <View className="mb-4">
-                        <Text className="mb-1 font-semibold text-foreground">Warranty Expiry</Text>
-                        <Pressable
-                            onPress={() => setShowWarrantyPicker(true)}
-                            className="border-b border-border pb-2"
-                        >
-                            <Text className={warrantyExpiry ? "text-foreground" : "text-muted-foreground"}>
-                                {warrantyExpiry ? warrantyExpiry.toISOString().slice(0, 10) : "Select date"}
-                            </Text>
-                        </Pressable>
-                    </View>
-
-                    {showWarrantyPicker && (
-                        <DateTimePicker
-                            value={warrantyExpiry ?? new Date()}
-                            mode="date"
-                            display={Platform.OS === "ios" ? "spinner" : "default"}
-                            onChange={(event: DateTimePickerEvent, date?: Date) => {
-                                if (Platform.OS !== "ios") {
-                                    setShowWarrantyPicker(false);
-                                }
-
-                                if (event.type === "set" && date) {
-                                    setWarrantyExpiry(date);
-                                }
-                            }}
-                        />
-                    )}
-
-                    <TextInput
-                        placeholder="Specifications / Notes"
-                        value={notes}
-                        onChangeText={setNotes}
-                        multiline
-                        style={{ textAlignVertical: "top" }}
-                        className="h-36 bg-accent rounded-xl p-3 mb-5 text-foreground"
-                    />
-
-                    <ImagePickerExample onUploaded={setImageUrl} />
-
-                </>
+                <NewAssetModeFields
+                    assetName={assetName}
+                    setAssetName={setAssetName}
+                    category={category}
+                    setCategory={setCategory}
+                    categories={categories}
+                    brand={brand}
+                    setBrand={setBrand}
+                    modelNo={modelNo}
+                    setModelNo={setModelNo}
+                    serialNo={serialNo}
+                    setSerialNo={setSerialNo}
+                    assetId={assetIdRef.current}
+                    condition={condition}
+                    setCondition={setCondition}
+                    conditions={conditions}
+                    purchaseDate={purchaseDate}
+                    showPurchasePicker={showPurchasePicker}
+                    setShowPurchasePicker={setShowPurchasePicker}
+                    setPurchaseDate={setPurchaseDate}
+                    price={price}
+                    setPrice={setPrice}
+                    quantity={quantity}
+                    setQuantity={setQuantity}
+                    warrantyExpiry={warrantyExpiry}
+                    showWarrantyPicker={showWarrantyPicker}
+                    setShowWarrantyPicker={setShowWarrantyPicker}
+                    setWarrantyExpiry={setWarrantyExpiry}
+                    notes={notes}
+                    setNotes={setNotes}
+                    setImageUrl={setImageUrl}
+                />
             )}
 
             <View className="flex-row items-center gap-3 mt-2">

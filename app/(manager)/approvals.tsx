@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Check, X, Clock, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react-native';
 import { FlatList } from 'react-native-gesture-handler';
 
+
 type ApprovalRequest = {
     id: string;
     userName: string;
@@ -342,6 +343,7 @@ export default function ApprovalsScreen() {
                         />
                     </CardContent>
                 </Card>
+
             </View>
             {/* Spacer for bottom tab bar */}
             <View style={{ height: 160 }} />
