@@ -16,8 +16,13 @@ import { Text } from "@/components/ui/text";
 import type { SelectOption } from "./formTypes";
 
 type NewAssetModeFieldsProps = {
+    useAssetDropdown: boolean;
     assetName: string;
     setAssetName: (value: string) => void;
+    selectedAssetOption: SelectOption | undefined;
+    setSelectedAssetOption: (value: SelectOption | undefined) => void;
+    assetOptions: SelectOption[];
+    isLoadingAssetOptions: boolean;
     category: SelectOption | undefined;
     setCategory: (value: SelectOption | undefined) => void;
     categories: SelectOption[];
@@ -49,8 +54,13 @@ type NewAssetModeFieldsProps = {
 };
 
 export const NewAssetModeFields = ({
+    useAssetDropdown,
     assetName,
     setAssetName,
+    selectedAssetOption,
+    setSelectedAssetOption,
+    assetOptions,
+    isLoadingAssetOptions,
     category,
     setCategory,
     categories,
@@ -82,13 +92,6 @@ export const NewAssetModeFields = ({
 }: NewAssetModeFieldsProps) => {
     return (
         <>
-            <TextInput
-                placeholder="Asset Name"
-                value={assetName}
-                onChangeText={setAssetName}
-                className="text-lg font-semibold border-b border-border mb-4 pb-1 text-foreground"
-            />
-
             <View className="mb-5">
                 <Text className="mb-1 font-semibold text-foreground">Asset Category</Text>
                 <Select value={category} onValueChange={setCategory}>
@@ -108,34 +111,64 @@ export const NewAssetModeFields = ({
                 </Select>
             </View>
 
-            <TextInput
-                placeholder="Brand/Manufacturer"
-                value={brand}
-                onChangeText={setBrand}
-                className="text-base border-b border-border mb-4 pb-1 text-foreground"
-            />
+            {useAssetDropdown ? (
+                <View className="mb-5">
+                    <Text className="mb-1 font-semibold text-foreground">Asset</Text>
+                    <Select value={selectedAssetOption} onValueChange={setSelectedAssetOption}>
+                        <SelectTrigger className="w-full">
+                            <SelectValue placeholder={isLoadingAssetOptions ? "Loading assets..." : category ? "Select asset" : "Select category first"} />
+                        </SelectTrigger>
+                        <SelectContent insets={{ top: 0, bottom: 0, left: 0, right: 0 }} className="w-full">
+                            <SelectGroup>
+                                <SelectLabel>Assets</SelectLabel>
+                                {assetOptions.map((item) => (
+                                    <SelectItem key={item.value} label={item.label} value={item.value}>
+                                        {item.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                </View>
+            ) : (
+                <>
+                    <TextInput
+                        placeholder="Asset Name"
+                        value={assetName}
+                        onChangeText={setAssetName}
+                        className="text-lg font-semibold border-b border-border mb-4 pb-1 text-foreground"
+                    />
 
-            <TextInput
-                placeholder="Model No"
-                value={modelNo}
-                onChangeText={setModelNo}
-                className="text-base border-b border-border mb-4 pb-1 text-foreground"
-            />
+                    <TextInput
+                        placeholder="Brand/Manufacturer"
+                        value={brand}
+                        onChangeText={setBrand}
+                        className="text-base border-b border-border mb-4 pb-1 text-foreground"
+                    />
 
-            <TextInput
-                placeholder="Serial No"
-                value={serialNo}
-                onChangeText={setSerialNo}
-                className="text-base border-b border-border mb-4 pb-1 text-foreground"
-            />
+                    <TextInput
+                        placeholder="Model No"
+                        value={modelNo}
+                        onChangeText={setModelNo}
+                        className="text-base border-b border-border mb-4 pb-1 text-foreground"
+                    />
 
-            <TextInput
-                placeholder="Asset ID"
-                value={assetId}
-                editable={false}
-                selectTextOnFocus={false}
-                className="text-base border-b border-border mb-4 pb-1 text-foreground bg-accent"
-            />
+                    <TextInput
+                        placeholder="Serial No"
+                        value={serialNo}
+                        onChangeText={setSerialNo}
+                        className="text-base border-b border-border mb-4 pb-1 text-foreground"
+                    />
+
+                    <TextInput
+                        placeholder="Asset ID"
+                        value={assetId}
+                        editable={false}
+                        selectTextOnFocus={false}
+                        className="text-base border-b border-border mb-4 pb-1 text-foreground bg-accent"
+                    />
+                </>
+            )}
 
             <View className="mb-5">
                 <Text className="mb-1 font-semibold text-foreground">Condition</Text>

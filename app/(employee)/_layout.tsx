@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { User, LogOut } from 'lucide-react-native';
+import { User, LogOut, PackagePlus } from 'lucide-react-native';
 import { NAV_THEME } from '@/lib/theme';
 import React, { useState } from 'react';
 import { View, Alert, Pressable } from 'react-native';
@@ -137,6 +137,14 @@ export default function EmployeeLayout() {
                         tabBarIcon: ({ color }) => <User size={20} color={color} />,
                     }}
                 />
+                <Tabs.Screen 
+                    name='myassets'
+                    options={{
+                        title: 'My Assets',
+                        tabBarLabel: 'My Assets',
+                        tabBarIcon: ({ color }) => <PackagePlus size={20} color={color} />,
+                    }}
+                    />
             </Tabs>
         </View>
     );

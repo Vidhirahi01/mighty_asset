@@ -202,12 +202,14 @@ function QuickActionButton({ onPress, item }: { item: actions; onPress?: () => v
 export default function OperationDashboard() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [stockActionMode, setStockActionMode] = useState<StockActionMode | undefined>(undefined);
+    const [openedFromInventory, setOpenedFromInventory] = useState(false);
     const router = useRouter();
     const { openAddAsset, stockAction } = useLocalSearchParams<{ openAddAsset?: string; stockAction?: StockActionMode }>();
 
     useEffect(() => {
         if (openAddAsset === '1') {
             setStockActionMode(stockAction);
+            setOpenedFromInventory(true);
             setIsDrawerOpen(true);
             router.setParams({ openAddAsset: undefined, stockAction: undefined });
         }
@@ -216,6 +218,7 @@ export default function OperationDashboard() {
     const handleQuickActionPress = (label: string) => {
         switch (label) {
             case 'Add Asset':
+                setOpenedFromInventory(false);
                 setStockActionMode(undefined);
                 setIsDrawerOpen(true);
                 break;
@@ -235,10 +238,7 @@ export default function OperationDashboard() {
 
     return (
         <View className="flex-1 bg-background">
-            <ScrollView
-                className="flex-1"
-                showsVerticalScrollIndicator={false}
-            >
+            <ScrollView showsVerticalScrollIndicator={false}>
                 <View className="p-6 gap-4">
                     {/* Header */}
                     <View className="gap-1 mb-2">
@@ -246,17 +246,13 @@ export default function OperationDashboard() {
                         <Text className="text-foreground/60 text-sm">Monitor and manage daily operations</Text>
                     </View>
 
-                    {/* Stats Grid */}
                     <View className="gap-2">
-                        <View className="flex-row gap-2">
-                            <FlatList
-                                scrollEnabled={false}
-                                data={STATS}
-                                renderItem={({ item }) => <MyCard item={item} />}
-                                keyExtractor={(item) => item.label}
-                                numColumns={2}
-                                columnWrapperStyle={{ gap: 8 }}
-                            />
+                        <View className="flex-row flex-wrap">
+                            {STATS.map((item) => (
+                                <View key={item.label} style={{ width: '50%' }}>
+                                    <MyCard item={item} />
+                                </View>
+                            ))}
                         </View>
                     </View>
 
@@ -275,40 +271,34 @@ export default function OperationDashboard() {
                             </View>
                         </CardHeader>
                         <CardContent className="p-0">
-                            <FlatList
-                                scrollEnabled={false}
-                                data={PENDING_CRITICAL_ACTIONS}
-                                renderItem={({ item }) => <PendingActionItem action={item} />}
-                                keyExtractor={(item) => item.id}
-                            />
+                            {PENDING_CRITICAL_ACTIONS.map((item) => (
+                                <PendingActionItem key={item.id} action={item} />
+                            ))}
                         </CardContent>
                     </Card>
 
                     <View className="mt-4">
-                        <FlatList
-                            scrollEnabled={false}
-                            data={ACTIONS}
-                            renderItem={({ item }) => (
-                                <QuickActionButton
-                                    item={item}
-                                    onPress={() => handleQuickActionPress(item.label)}
-                                />
-                            )}
-                            keyExtractor={(item) => item.label}
-                            numColumns={2}
-                            columnWrapperStyle={{ justifyContent: 'space-between' }}
-                        />
+                        <View className="flex-row flex-wrap">
+                            {ACTIONS.map((item) => (
+                                <View key={item.label} style={{ width: '50%' }}>
+                                    <QuickActionButton
+                                        item={item}
+                                        onPress={() => handleQuickActionPress(item.label)}
+                                    />
+                                </View>
+                            ))}
+                        </View>
                     </View>
 
                     <View style={{ height: 160 }} />
                 </View>
             </ScrollView>
 
-            {/* Add Asset Drawer */}
             <RightDrawer visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>
                 <AddAssetForm
                     onClose={() => setIsDrawerOpen(false)}
                     presetAction={stockActionMode}
+                    forceClassicAddForm={!openedFromInventory && !stockActionMode}
                 />
             </RightDrawer>
         </View>

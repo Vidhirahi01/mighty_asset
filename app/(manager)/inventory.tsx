@@ -179,12 +179,22 @@ export default function InventoryScreen() {
     const router = useRouter();
     const isOperationsMode = mode === 'operations';
 
-    const handleStockActionRequest = (action: StockRequest['requestType']) => {
+    const openInventoryActionDrawer = (action?: StockRequest['requestType']) => {
+        if (action) {
+            router.push({
+                pathname: '/dashboard',
+                params: {
+                    openAddAsset: '1',
+                    stockAction: action,
+                },
+            });
+            return;
+        }
+
         router.push({
             pathname: '/dashboard',
             params: {
                 openAddAsset: '1',
-                stockAction: action,
             },
         });
     };
@@ -247,23 +257,23 @@ export default function InventoryScreen() {
                     <Card className="bg-card border border-border rounded-xl ">
                         <CardHeader>
                             <CardTitle className="text-foreground text-lg">Quick Actions</CardTitle>
-                            <CardDescription className="text-foreground/60">Requests go to manager for approval</CardDescription>
+                            <CardDescription className="text-foreground/60">Low stock recharge or new stock bulk update</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <View className="gap-3">
                                 <Pressable
-                                    onPress={() => handleStockActionRequest('add-stock')}
+                                    onPress={() => openInventoryActionDrawer('add-stock')}
                                     className="w-full items-center rounded-lg bg-primary px-3 py-3"
                                     style={quickActionPressStyle}
                                 >
-                                    <Text className="text-white text-xs font-semibold">Add Stock</Text>
+                                    <Text className="text-white text-xs font-semibold">Low Stock Recharge</Text>
                                 </Pressable>
                                 <Pressable
-                                    onPress={() => handleStockActionRequest('set-reorder-alert')}
+                                    onPress={() => openInventoryActionDrawer()}
                                     className="w-full items-center rounded-lg bg-primary px-3 py-3"
                                     style={quickActionPressStyle}
                                 >
-                                    <Text className="text-white text-xs font-semibold">Set Reorder Alert</Text>
+                                    <Text className="text-white text-xs font-semibold">New Stock (Bulk Update)</Text>
                                 </Pressable>
                             </View>
                         </CardContent>

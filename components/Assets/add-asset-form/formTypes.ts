@@ -7,12 +7,15 @@ export type StockActionMode = "add-stock" | "set-reorder-alert";
 export type AddAssetFormProps = {
     onClose: () => void;
     presetAction?: StockActionMode;
+    forceClassicAddForm?: boolean;
 };
 
 export type AssetRecord = {
     id: string | number;
     asset_name: string;
     category: string | null;
+    brand?: string | null;
+    model_no?: string | null;
     quantity: number | null;
     minimum_stock_level: number | null;
     status: string | null;
@@ -25,20 +28,22 @@ export const CATEGORY_MIN_STOCK_LEVEL: Record<string, number> = {
     laptops: 2,
     monitors: 3,
     keyboards: 10,
-    headphones: 5,
     cables: 30,
-    accessories: 20,
+    mouse: 20,
+    printers: 2,
+    tablets: 4,
 };
 
 export const DEFAULT_MIN_STOCK_LEVEL = 5;
 
 export const categories: SelectOption[] = [
     { label: "Laptops", value: "laptops" },
-    { label: "Monitors", value: "monitors" },
-    { label: "Keyboards", value: "keyboards" },
-    { label: "Headphones", value: "headphones" },
-    { label: "Cables", value: "cables" },
-    { label: "Accessories", value: "accessories" },
+    { label: "Monitor", value: "monitors" },
+    { label: "Keyboard", value: "keyboards" },
+    { label: "Cable", value: "cables" },
+    { label: "Mouse", value: "mouse" },
+    { label: "Printer", value: "printers" },
+    { label: "Tablet", value: "tablets" },
 ];
 
 export const conditions: SelectOption[] = [

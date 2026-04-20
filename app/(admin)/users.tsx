@@ -2,7 +2,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, ChevronDown, Save, X, Search } from 'lucide-react-native';
 import { Text, View, ScrollView, FlatList, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
-import { CreateUserForm } from './createUserForm';
+import CreateUserForm from './createUserForm';
 import { fetchAllUsers, updateUser } from '@/services/user.service';
 
 interface User {
@@ -178,14 +178,12 @@ export default function UsersScreen() {
                 </ScrollView>
             </View>
 
-            {/* Users count */}
             <View className="px-5 pb-2">
                 <Text className="text-foreground/40 text-xs">
                     {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'} found
                 </Text>
             </View>
 
-            {/* List */}
             <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-5 ">
                 {loading ? (
                     <ActivityIndicator size="large" color="#1b72fc" className="mt-10" />
@@ -203,10 +201,8 @@ export default function UsersScreen() {
                     />
                 )}
 
-                {/* Edit Panel */}
                 {selectedUser && (
                     <View className="bg-card border border-border rounded-2xl p-5 mt-4 mb-8">
-                        {/* Header */}
                         <View className="flex-row items-center justify-between mb-5">
                             <View>
                                 <Text className="text-foreground font-bold text-base">Edit User</Text>
@@ -220,7 +216,6 @@ export default function UsersScreen() {
                             </Pressable>
                         </View>
 
-                        {/* Name */}
                         <View className="mb-4">
                             <Text className="text-foreground/60 text-xs font-semibold mb-1.5 uppercase tracking-wide">Name</Text>
                             <Input
@@ -230,7 +225,6 @@ export default function UsersScreen() {
                             />
                         </View>
 
-                        {/* Email */}
                         <View className="mb-4">
                             <Text className="text-foreground/60 text-xs font-semibold mb-1.5 uppercase tracking-wide">Email</Text>
                             <Input
@@ -241,7 +235,6 @@ export default function UsersScreen() {
                             />
                         </View>
 
-                        {/* Role */}
                         <View className="mb-4">
                             <Text className="text-foreground/60 text-xs font-semibold mb-1.5 uppercase tracking-wide">Role</Text>
                             <Pressable
@@ -268,7 +261,6 @@ export default function UsersScreen() {
                             )}
                         </View>
 
-                        {/* Department */}
                         <View className="mb-4">
                             <Text className="text-foreground/60 text-xs font-semibold mb-1.5 uppercase tracking-wide">Department</Text>
                             <Pressable
@@ -330,8 +322,8 @@ export default function UsersScreen() {
                             )}
                         </Pressable>
                     </View>
-                )}\n            </ScrollView>
-            {/* Spacer for bottom tab bar */}
+                )}
+            </ScrollView>
             <View style={{ height: 160 }} />
 
             <CreateUserForm

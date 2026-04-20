@@ -56,6 +56,12 @@ export default function AdminLayout() {
                         tabBarIcon: ({ color }) => <User size={24} color={color} />,
                     }}
                 />
+                <Tabs.Screen
+                    name="createUserForm"
+                    options={{
+                        href: null,
+                    }}
+                />
             </Tabs>
 
             <LogoutModal

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, View, Alert } from "react-native";
+import { Pressable, FlatList, View, Alert } from "react-native";
 import { Text } from "@/components/ui/text";
 import { supabase } from "@/lib/supabase";
 import { AddStockModeFields } from "@/components/Assets/add-asset-form/AddStockModeFields";
@@ -16,14 +16,18 @@ import {
     type SelectOption,
 } from "@/components/Assets/add-asset-form/formTypes";
 
-export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
+export const AddAssetForm = ({ onClose, presetAction, forceClassicAddForm }: AddAssetFormProps) => {
     const isAddStockMode = presetAction === 'add-stock';
+    const isClassicAddMode = !!forceClassicAddForm && !isAddStockMode;
+    const [showBulkAddForm, setShowBulkAddForm] = useState(false);
 
     const [assetName, setAssetName] = useState("");
     const [category, setCategory] = useState<SelectOption | undefined>(undefined);
     const [brand, setBrand] = useState("");
     const [modelNo, setModelNo] = useState("");
     const [serialNo, setSerialNo] = useState("");
+    const [assetOptions, setAssetOptions] = useState<SelectOption[]>([]);
+    const [isLoadingAssetOptions, setIsLoadingAssetOptions] = useState(false);
     const [condition, setCondition] = useState<SelectOption | undefined>(undefined);
     const [purchaseDate, setPurchaseDate] = useState<Date | null>(null);
     const [showPurchasePicker, setShowPurchasePicker] = useState(false);
@@ -39,15 +43,24 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
     const assetIdRef = useRef(`AST-${Date.now().toString().slice(-6)}`);
 
     const numericQuantity = quantity;
-    const numericMinimumStockLevel = category?.value
-        ? (CATEGORY_MIN_STOCK_LEVEL[category.value] ?? DEFAULT_MIN_STOCK_LEVEL)
-        : DEFAULT_MIN_STOCK_LEVEL;
-
-    const stockStatus = getStockStatus(numericQuantity, numericMinimumStockLevel);
 
     const selectedAssetRecord = lowStockAssets.find(
         (asset) => String(asset.id) === selectedLowStockAsset?.value
     );
+    const isBulkAddMode = !isAddStockMode || showBulkAddForm;
+    const useAssetDropdown = !isClassicAddMode;
+    const selectedAssetOption = assetOptions.find((item) => item.value === assetName);
+
+    const makeVariantKey = (asset: {
+        category: string | null | undefined;
+        brand?: string | null;
+        model_no?: string | null;
+    }) => {
+        const categoryKey = String(asset.category ?? '').trim().toLowerCase() || 'uncategorized';
+        const brandKey = String(asset.brand ?? '').trim().toLowerCase() || 'na';
+        const modelKey = String(asset.model_no ?? '').trim().toLowerCase() || 'na';
+        return `${categoryKey}::${brandKey}::${modelKey}`;
+    };
 
     useEffect(() => {
         if (!isAddStockMode) return;
@@ -56,7 +69,7 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
             setIsLoadingLowStockAssets(true);
             const { data, error } = await supabase
                 .from('asset_table')
-                .select('id, asset_name, category, quantity, minimum_stock_level, status, condition, image_url, note');
+                .select('id, asset_name, category, brand, model_no, status, condition, image_url, note');
 
             setIsLoadingLowStockAssets(false);
 
@@ -66,7 +79,26 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
             }
 
             const assets = (data ?? []) as AssetRecord[];
-            const filteredLowStockAssets = assets.filter((asset) => {
+
+            const groupedAssets = new Map<string, AssetRecord>();
+
+            assets.forEach((asset) => {
+                const key = makeVariantKey(asset);
+                const existing = groupedAssets.get(key);
+
+                if (existing) {
+                    existing.quantity = Number(existing.quantity ?? 0) + 1;
+                    return;
+                }
+
+                groupedAssets.set(key, {
+                    ...asset,
+                    id: key,
+                    quantity: 1,
+                });
+            });
+
+            const filteredLowStockAssets = Array.from(groupedAssets.values()).filter((asset) => {
                 const qty = Number(asset.quantity ?? 0);
                 const minLevel = getThresholdForAsset(asset);
                 const computedStatus = getStockStatus(qty, minLevel);
@@ -102,33 +134,92 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
         setNotes((current) => current || presetNote);
     }, [presetAction]);
 
+    useEffect(() => {
+        if (!isBulkAddMode || isClassicAddMode) return;
+
+        if (!category?.value) {
+            setAssetOptions([]);
+            setAssetName("");
+            return;
+        }
+
+        const loadAssetOptions = async () => {
+            setIsLoadingAssetOptions(true);
+
+            const { data, error } = await supabase
+                .from('asset_table')
+                .select('asset_name')
+                .eq('category', category.value);
+
+            setIsLoadingAssetOptions(false);
+
+            if (error) {
+                Alert.alert('Error', 'Failed to load assets for selected category.');
+                setAssetOptions([]);
+                return;
+            }
+
+            const uniqueAssets = Array.from(
+                new Set(
+                    ((data ?? []) as Array<{ asset_name: string | null }>)
+                        .map((row) => String(row.asset_name ?? '').trim())
+                        .filter(Boolean)
+                )
+            );
+
+            const options = uniqueAssets.map((name) => ({ label: name, value: name }));
+            setAssetOptions(options);
+
+            if (!options.some((item) => item.value === assetName)) {
+                setAssetName("");
+            }
+        };
+
+        loadAssetOptions();
+    }, [category?.value, isBulkAddMode, isClassicAddMode]);
+
+    useEffect(() => {
+        if (!useAssetDropdown) return;
+        if (!assetOptions.some((item) => item.value === assetName)) {
+            setAssetName("");
+        }
+    }, [assetName, assetOptions, useAssetDropdown]);
+
     const addAsset = async () => {
-        if (quantity < 0) {
-            Alert.alert('Invalid Quantity', 'Quantity cannot be negative.');
+        if (quantity <= 0) {
+            Alert.alert('Invalid Quantity', 'Quantity should be at least 1.');
+            return;
+        }
+
+        if (isClassicAddMode) {
+            if (!assetName.trim() || !category?.value || !brand.trim() || !modelNo.trim()) {
+                Alert.alert('Missing Details', 'Asset name, category, brand and model are required.');
+                return;
+            }
+        } else if (!assetName.trim() || !category?.value) {
+            Alert.alert('Missing Details', 'Please select category and asset.');
             return;
         }
 
         try {
+            const rowsToInsert = Array.from({ length: numericQuantity }, () => ({
+                asset_name: assetName,
+                category: category?.value ?? null,
+                note: notes,
+                warranty_expiry: warrantyExpiry ? warrantyExpiry.toISOString().slice(0, 10) : null,
+                purchase_date: purchaseDate ? purchaseDate.toISOString().slice(0, 10) : null,
+                condition: condition?.value ?? null,
+                serial_no: isClassicAddMode ? (numericQuantity === 1 ? (serialNo || null) : null) : null,
+                model_no: isClassicAddMode ? (modelNo || null) : null,
+                brand: isClassicAddMode ? (brand || null) : null,
+                status: 'AVAILABLE',
+                assigned_to: null,
+                image_url: imageUrl,
+            }));
+
             const { data, error } = await supabase
                 .from("asset_table")
-                .insert([
-                    {
-                        asset_name: assetName,
-                        category: category?.value ?? null,
-                        note: notes,
-                        warranty_expiry: warrantyExpiry ? warrantyExpiry.toISOString().slice(0, 10) : null,
-                        purchase_date: purchaseDate ? purchaseDate.toISOString().slice(0, 10) : null,
-                        condition: condition?.value ?? null,
-                        serial_no: serialNo || null,
-                        model_no: modelNo || null,
-                        brand,
-                        quantity: numericQuantity,
-                        minimum_stock_level: numericMinimumStockLevel,
-                        status: stockStatus,
-                        assigned_to: null,
-                        image_url: imageUrl,
-                    },
-                ]);
+                .insert(rowsToInsert);
 
             if (error) {
                 console.log("Error:", error.message);
@@ -137,12 +228,7 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
 
             console.log("Inserted:", data);
 
-            if (stockStatus !== 'in-stock') {
-                const alertMessage = stockStatus === 'out-of-stock'
-                    ? 'Asset was saved with Out of Stock status. Please restock immediately.'
-                    : 'Asset was saved with Low Stock status. Reorder alert should be triggered.';
-                Alert.alert('Stock Alert', alertMessage);
-            }
+            Alert.alert('Success', `${numericQuantity} unit${numericQuantity > 1 ? 's' : ''} added for ${assetName}.`);
 
             onClose();
         } catch (err) {
@@ -166,28 +252,29 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
             return;
         }
 
-        const currentQuantity = Number(selectedAssetRecord.quantity ?? 0);
-        const minLevel = Number(selectedAssetRecord.minimum_stock_level ?? DEFAULT_MIN_STOCK_LEVEL);
-        const updatedQuantity = currentQuantity + Math.max(0, quantity);
-        const updatedStatus = getStockStatus(updatedQuantity, minLevel);
+        const rowsToInsert = Array.from({ length: quantity }, () => ({
+            asset_name: selectedAssetRecord.asset_name,
+            category: selectedAssetRecord.category,
+            brand: selectedAssetRecord.brand ?? null,
+            model_no: selectedAssetRecord.model_no ?? null,
+            condition: condition.value,
+            image_url: imageUrl ?? selectedAssetRecord.image_url,
+            note: notes || selectedAssetRecord.note,
+            status: 'AVAILABLE',
+            assigned_to: null,
+            serial_no: null,
+        }));
 
         const { error } = await supabase
             .from('asset_table')
-            .update({
-                quantity: updatedQuantity,
-                status: updatedStatus,
-                condition: condition.value,
-                image_url: imageUrl ?? selectedAssetRecord.image_url,
-                note: notes || selectedAssetRecord.note,
-            })
-            .eq('id', selectedAssetRecord.id);
+            .insert(rowsToInsert);
 
         if (error) {
             Alert.alert('Error', 'Failed to update stock.');
             return;
         }
 
-        Alert.alert('Stock Updated', `${selectedAssetRecord.asset_name} quantity updated to ${updatedQuantity}.`);
+        Alert.alert('Stock Updated', `${quantity} unit${quantity > 1 ? 's' : ''} added to ${selectedAssetRecord.asset_name}.`);
         onClose();
     };
 
@@ -203,81 +290,114 @@ export const AddAssetForm = ({ onClose, presetAction }: AddAssetFormProps) => {
     });
 
     return (
-        <ScrollView showsVerticalScrollIndicator={false} scrollEnabled nestedScrollEnabled>
-            <View className="flex-row items-center justify-between mb-5">
-                <Text className="text-2xl font-bold text-foreground">
-                    {isAddStockMode ? 'Refill Existing Asset Stock' : 'Add Asset'}
-                </Text>
-                <Pressable onPress={onClose}>
-                    <Text className="text-lg text-foreground">X</Text>
-                </Pressable>
-            </View>
+        <FlatList
+            data={[]}
+            keyExtractor={(_, index) => String(index)}
+            renderItem={null}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+                <>
+                    <View className="flex-row items-center justify-between mb-5">
+                        <Text className="text-2xl font-bold text-foreground">
+                            {isBulkAddMode ? (isClassicAddMode ? 'Add Asset' : 'Add Asset (Bulk)') : 'Refill Existing Asset Stock'}
+                        </Text>
+                        <Pressable onPress={onClose}>
+                            <Text className="text-lg text-foreground">X</Text>
+                        </Pressable>
+                    </View>
 
-            {isAddStockMode ? (
-                <AddStockModeFields
-                    selectedLowStockAsset={selectedLowStockAsset}
-                    setSelectedLowStockAsset={setSelectedLowStockAsset}
-                    isLoadingLowStockAssets={isLoadingLowStockAssets}
-                    lowStockAssetOptions={lowStockAssetOptions}
-                    selectedAssetRecord={selectedAssetRecord}
-                    quantity={quantity}
-                    setQuantity={setQuantity}
-                    condition={condition}
-                    setCondition={setCondition}
-                    conditions={conditions}
-                    notes={notes}
-                    setNotes={setNotes}
-                    setImageUrl={setImageUrl}
-                    getThresholdForAsset={getThresholdForAsset}
-                    getStockStatus={getStockStatus}
-                />
-            ) : (
-                <NewAssetModeFields
-                    assetName={assetName}
-                    setAssetName={setAssetName}
-                    category={category}
-                    setCategory={setCategory}
-                    categories={categories}
-                    brand={brand}
-                    setBrand={setBrand}
-                    modelNo={modelNo}
-                    setModelNo={setModelNo}
-                    serialNo={serialNo}
-                    setSerialNo={setSerialNo}
-                    assetId={assetIdRef.current}
-                    condition={condition}
-                    setCondition={setCondition}
-                    conditions={conditions}
-                    purchaseDate={purchaseDate}
-                    showPurchasePicker={showPurchasePicker}
-                    setShowPurchasePicker={setShowPurchasePicker}
-                    setPurchaseDate={setPurchaseDate}
-                    price={price}
-                    setPrice={setPrice}
-                    quantity={quantity}
-                    setQuantity={setQuantity}
-                    warrantyExpiry={warrantyExpiry}
-                    showWarrantyPicker={showWarrantyPicker}
-                    setShowWarrantyPicker={setShowWarrantyPicker}
-                    setWarrantyExpiry={setWarrantyExpiry}
-                    notes={notes}
-                    setNotes={setNotes}
-                    setImageUrl={setImageUrl}
-                />
-            )}
+                    {!isBulkAddMode ? (
+                        <AddStockModeFields
+                            selectedLowStockAsset={selectedLowStockAsset}
+                            setSelectedLowStockAsset={setSelectedLowStockAsset}
+                            isLoadingLowStockAssets={isLoadingLowStockAssets}
+                            lowStockAssetOptions={lowStockAssetOptions}
+                            selectedAssetRecord={selectedAssetRecord}
+                            quantity={quantity}
+                            setQuantity={setQuantity}
+                            condition={condition}
+                            setCondition={setCondition}
+                            conditions={conditions}
+                            notes={notes}
+                            setNotes={setNotes}
+                            setImageUrl={setImageUrl}
+                            getThresholdForAsset={getThresholdForAsset}
+                            getStockStatus={getStockStatus}
+                        />
+                    ) : (
+                        <NewAssetModeFields
+                            useAssetDropdown={useAssetDropdown}
+                            assetName={assetName}
+                            setAssetName={setAssetName}
+                            selectedAssetOption={selectedAssetOption}
+                            setSelectedAssetOption={(value) => setAssetName(value?.value ?? "")}
+                            assetOptions={assetOptions}
+                            isLoadingAssetOptions={isLoadingAssetOptions}
+                            category={category}
+                            setCategory={setCategory}
+                            categories={categories}
+                            brand={brand}
+                            setBrand={setBrand}
+                            modelNo={modelNo}
+                            setModelNo={setModelNo}
+                            serialNo={serialNo}
+                            setSerialNo={setSerialNo}
+                            assetId={assetIdRef.current}
+                            condition={condition}
+                            setCondition={setCondition}
+                            conditions={conditions}
+                            purchaseDate={purchaseDate}
+                            showPurchasePicker={showPurchasePicker}
+                            setShowPurchasePicker={setShowPurchasePicker}
+                            setPurchaseDate={setPurchaseDate}
+                            price={price}
+                            setPrice={setPrice}
+                            quantity={quantity}
+                            setQuantity={setQuantity}
+                            warrantyExpiry={warrantyExpiry}
+                            showWarrantyPicker={showWarrantyPicker}
+                            setShowWarrantyPicker={setShowWarrantyPicker}
+                            setWarrantyExpiry={setWarrantyExpiry}
+                            notes={notes}
+                            setNotes={setNotes}
+                            setImageUrl={setImageUrl}
+                        />
+                    )}
 
-            <View className="flex-row items-center gap-3 mt-2">
-                <Pressable onPress={onClose} className="flex-1 border border-border py-3.5 rounded-xl items-center">
-                    <Text className="text-foreground font-semibold">Cancel</Text>
-                </Pressable>
-                <Pressable
-                    className="flex-1 bg-primary py-3.5 rounded-xl items-center"
-                    onPress={isAddStockMode ? refillExistingAssetStock : addAsset}
-                >
-                    <Text className="text-white font-semibold">{isAddStockMode ? 'Update Stock' : 'Add Asset'}</Text>
-                </Pressable>
-            </View>
-            <View className="h-24" />
-        </ScrollView>
+                    <View className="flex-row items-center gap-3 mt-2">
+                        <Pressable onPress={onClose} className="flex-1 border border-border py-3.5 rounded-xl items-center">
+                            <Text className="text-foreground font-semibold">Cancel</Text>
+                        </Pressable>
+                        <Pressable
+                            className="flex-1 bg-primary py-3.5 rounded-xl items-center"
+                            onPress={isBulkAddMode ? addAsset : refillExistingAssetStock}
+                        >
+                            <Text className="text-white font-semibold">{isBulkAddMode ? (isClassicAddMode ? 'Add Asset' : 'Update Asset') : 'Update Stock'}</Text>
+                        </Pressable>
+                    </View>
+
+                    {isAddStockMode && !showBulkAddForm && (
+                        <Pressable
+                            onPress={() => setShowBulkAddForm(true)}
+                            className="mt-3 rounded-xl border border-primary bg-primary/5 py-3.5 items-center"
+                        >
+                            <Text className="text-primary font-semibold">Add New Asset Instead (Bulk)</Text>
+                        </Pressable>
+                    )}
+
+                    {isAddStockMode && showBulkAddForm && (
+                        <Pressable
+                            onPress={() => setShowBulkAddForm(false)}
+                            className="mt-3 rounded-xl border border-border bg-accent py-3.5 items-center"
+                        >
+                            <Text className="text-foreground font-semibold">Back to Low Stock Update</Text>
+                        </Pressable>
+                    )}
+
+                    <View className="h-24" />
+                </>
+            }
+        />
     );
 };
