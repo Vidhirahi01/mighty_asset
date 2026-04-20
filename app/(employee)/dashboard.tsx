@@ -51,6 +51,21 @@ export default function EmployeeDashboard() {
     const router = useRouter();
 
     const handleQuickActionPress = (action: QuickAction) => {
+        if (action.Label === 'Request Asset') {
+            router.push('/request-asset');
+            return;
+        }
+
+        if (action.Label === 'Report Issue') {
+            router.push('/report-issue');
+            return;
+        }
+
+        if (action.Label === 'Return Asset') {
+            router.push('/return-asset');
+            return;
+        }
+
         if (action.Label === 'View My Assets') {
             router.push('/myassets');
             return;

@@ -137,14 +137,35 @@ export default function EmployeeLayout() {
                         tabBarIcon: ({ color }) => <User size={20} color={color} />,
                     }}
                 />
-                <Tabs.Screen 
+                <Tabs.Screen
                     name='myassets'
                     options={{
                         title: 'My Assets',
                         tabBarLabel: 'My Assets',
                         tabBarIcon: ({ color }) => <PackagePlus size={20} color={color} />,
                     }}
-                    />
+                />
+                <Tabs.Screen
+                    name="request-asset"
+                    options={{
+                        title: 'Request Asset Form',
+                        href: null,
+                    }}
+                />
+                <Tabs.Screen
+                    name="report-issue"
+                    options={{
+                        title: 'Report Issue Form',
+                        href: null,
+                    }}
+                />
+                <Tabs.Screen
+                    name="return-asset"
+                    options={{
+                        title: 'Return Asset Form',
+                        href: null,
+                    }}
+                />
             </Tabs>
         </View>
     );
