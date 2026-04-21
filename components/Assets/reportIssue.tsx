@@ -320,7 +320,7 @@ export default function ReportIssueScreen() {
                     reason: issueTitle.trim(),
                     expected_duration: null,
                     additional_notes: issueSummary,
-                    status: 'Pending',
+                    status: 'PENDING',
                 },
             ]);
 

@@ -2,11 +2,6 @@ import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 
-/**
- * Custom hook for logout functionality
- * Wraps the Zustand auth store to provide a convenient interface
- * @deprecated Use useAuthStore directly for new code
- */
 export const useLogout = () => {
     const router = useRouter();
     const { logout, isLoading } = useAuthStore();

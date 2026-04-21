@@ -9,7 +9,6 @@ export interface CreateUserData {
     password?: string;
 }
 
-// Generate temporary password
 export const generateTemporaryPassword = (): string => {
     const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const lowercase = 'abcdefghijklmnopqrstuvwxyz';
@@ -19,18 +18,15 @@ export const generateTemporaryPassword = (): string => {
     const allChars = uppercase + lowercase + numbers + special;
     let password = '';
 
-    // Ensure at least one of each type
     password += uppercase[Math.floor(Math.random() * uppercase.length)];
     password += lowercase[Math.floor(Math.random() * lowercase.length)];
     password += numbers[Math.floor(Math.random() * numbers.length)];
     password += special[Math.floor(Math.random() * special.length)];
 
-    // Add random characters to reach 12 characters
     for (let i = password.length; i < 12; i++) {
         password += allChars[Math.floor(Math.random() * allChars.length)];
     }
 
-    // Shuffle password
     return password.split('').sort(() => Math.random() - 0.5).join('');
 };
 
@@ -58,12 +54,9 @@ export const createUser = async (userData: CreateUserData) => {
         console.log("User created successfully:", data);
         console.log("RPC Response data:", JSON.stringify(data));
 
-        // Set password_needs_reset flag to true for users created with temporary password
-        // Try multiple possible key names from the RPC response
         let userId = data.user_id || data.id || data.userId;
 
         if (!userId) {
-            // Fallback: Query the database to find the user by email
             console.log("UserID not found in RPC response, querying by email:", userData.email);
             const { data: userFound, error: queryError } = await supabase
                 .from('user_table')
@@ -88,7 +81,6 @@ export const createUser = async (userData: CreateUserData) => {
 
             if (updateError) {
                 console.error("Error setting password_reset flag:", updateError);
-                // Don't throw error here - user is still created, just log warning
             } else {
                 console.log("✅ Password reset flag set to true for user:", userId);
             }
@@ -168,7 +160,6 @@ export const deleteUser = async (userId: string) => {
 
 export const resetUserPassword = async (userId: string, newPassword: string) => {
     try {
-        // ✅ User updates their own password while logged in (no admin key needed)
         const { error: authError } = await supabase.auth.updateUser({
             password: newPassword,
         });
@@ -178,7 +169,6 @@ export const resetUserPassword = async (userId: string, newPassword: string) => 
             throw new Error(`Failed to update password: ${authError.message}`);
         }
 
-        // Update password_needs_reset flag in database
         const { data, error: dbError } = await supabase
             .from("user_table")
             .update({ password_needs_reset: false })
@@ -199,11 +189,6 @@ export const resetUserPassword = async (userId: string, newPassword: string) => 
     }
 };
 
-/**
- * Force a user to reset their password on next login
- * @param userId - The user ID to force password reset for
- * @returns Updated user data
- */
 export const forcePasswordReset = async (userId: string) => {
     try {
         const { data, error } = await supabase
@@ -227,11 +212,6 @@ export const forcePasswordReset = async (userId: string) => {
     }
 };
 
-/**
- * DEBUG FUNCTION: Check if user has password_reset flag set
- * @param email - User's email
- * @returns User data including password_reset flag
- */
 export const debugCheckPasswordResetFlag = async (email: string) => {
     try {
         const { data, error } = await supabase
@@ -245,12 +225,11 @@ export const debugCheckPasswordResetFlag = async (email: string) => {
             throw new Error(`Failed to fetch user: ${error.message}`);
         }
 
-        console.log("=== DEBUG: User Password Reset Flag ===");
+        console.log("DEBUG: User Password Reset Flag ===");
         console.log("Email:", data.email);
         console.log("User ID:", data.id);
         console.log("Role:", data.role);
         console.log("Password needs reset:", data.password_reset);
-        console.log("=====================================");
 
         return data;
 

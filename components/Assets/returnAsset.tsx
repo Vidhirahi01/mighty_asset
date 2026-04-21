@@ -179,7 +179,7 @@ export default function ReturnAssetScreen() {
                     reason: returnReason.label,
                     expected_duration: null,
                     additional_notes: summary,
-                    status: 'Pending',
+                    status: 'PENDING',
                 },
             ]);
 
