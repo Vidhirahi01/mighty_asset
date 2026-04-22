@@ -1,3 +1,4 @@
+// components/Assets/request-asset.tsx
 import React, { useState } from 'react';
 import { Alert, FlatList, Pressable, TextInput, View } from 'react-native';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,14 @@ import {
     type Option,
 } from '@/components/ui/select';
 import { categories } from '@/components/Assets/add-asset-form/formTypes';
-import { supabase } from '@/lib/supabase';
+
+// ── CHANGE 1: Remove this old import ──────────────────────────────
+// REMOVED: import { supabase } from '@/lib/supabase';
+// Reason: the component should NOT talk to Supabase directly
+
+// ── CHANGE 2: Add these two imports instead ───────────────────────
+import { useAuthStore } from '@/store/authStore';          // get current user from Zustand
+import { useSubmitAssetRequest } from '@/hooks/queries/useRequests'; // the mutation hook
 
 type SelectOption = NonNullable<Option>;
 
@@ -32,14 +40,24 @@ const DURATION_OPTIONS: SelectOption[] = [
 const QUANTITY_REQUIRED_CATEGORIES = new Set(['monitors', 'tablets', 'cables']);
 
 export default function RequestAssetScreen() {
+
+    // ── CHANGE 3: Add these two lines at the top of the component ─
+    const user = useAuthStore((state) => state.user);    // replaces supabase.auth.getUser()
+    const submitRequest = useSubmitAssetRequest();        // replaces all the Supabase logic in handleSubmit
+
+    // ── These useState lines stay exactly the same ─────────────────
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [categoryQuantities, setCategoryQuantities] = useState<Record<string, string>>({});
     const [priority, setPriority] = useState<SelectOption | undefined>(undefined);
     const [expectedDuration, setExpectedDuration] = useState<SelectOption | undefined>(undefined);
     const [reason, setReason] = useState('');
     const [additionalNotes, setAdditionalNotes] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // ── CHANGE 4: Remove this line ────────────────────────────────
+    // REMOVED: const [isSubmitting, setIsSubmitting] = useState(false);
+    // Reason: submitRequest.isPending replaces this completely
+
+    // ── These helper functions stay exactly the same ───────────────
     const getCategoryLabel = (value: string) => {
         const match = categories.find((item) => item.value === value);
         return match?.label ?? value;
@@ -77,9 +95,12 @@ export default function RequestAssetScreen() {
         setAdditionalNotes('');
     };
 
-    const handleSubmit = async () => {
+    // ── CHANGE 5: Replace the entire handleSubmit function ─────────
+    // BEFORE: handleSubmit was ~60 lines with 4 direct Supabase calls
+    // AFTER: it just validates, then calls submitRequest.mutate()
+    const handleSubmit = () => {
+        // Validation stays the same
         if (selectedCategories.length === 0 || !priority?.value || !expectedDuration?.value || !reason.trim()) {
-            console.log("Status value:", status);
             Alert.alert('Missing Fields', 'Please select categories, priority, reason, and expected duration.');
             return;
         }
@@ -95,105 +116,45 @@ export default function RequestAssetScreen() {
             return;
         }
 
-        setIsSubmitting(true);
-        try {
-            const { data: authData } = await supabase.auth.getUser();
-            const requesterEmail = authData.user?.email ?? null;
-
-            if (!requesterEmail) {
-                Alert.alert('Error', 'Unable to determine current user email.');
-                return;
-            }
-
-            const { data: userRow, error: userError } = await supabase
-                .from('user_table')
-                .select('id')
-                .eq('email', requesterEmail)
-                .single();
-
-            if (userError || !userRow?.id) {
-                Alert.alert('Error', userError?.message || 'Unable to map email to user profile.');
-                return;
-            }
-
-            const { data: existingRows, error: existingError } = await supabase
-                .from('request_table')
-                .select('category')
-                .eq('user_id', userRow.id)
-                .eq('type', 'ASSET_REQUEST')
-                .eq('status', 'PENDING')
-                .in('category', selectedCategories);
-
-            if (existingError) {
-                console.log("status:", status)
-                Alert.alert('Error', existingError.message || 'Failed to validate existing requests.');
-                return;
-            }
-
-            const alreadyPendingCategories = new Set(
-                ((existingRows ?? []) as Array<{ category: string | null }>)
-                    .map((row) => row.category)
-                    .filter((rowCategory): rowCategory is string => Boolean(rowCategory))
-            );
-
-            const categoriesToInsert = selectedCategories.filter((categoryValue) => !alreadyPendingCategories.has(categoryValue));
-
-            if (categoriesToInsert.length === 0) {
-                Alert.alert('Already Exists', 'Pending requests already exist for all selected categories.');
-                return;
-            }
-
-            const requests = categoriesToInsert.map((categoryValue) => {
-                const quantity = QUANTITY_REQUIRED_CATEGORIES.has(categoryValue)
-                    ? Number(categoryQuantities[categoryValue])
-                    : 1;
-
-                const detailLines = [
-                    `Title: ${reason.trim()}`,
-                    `Priority: ${priority.label}`,
-                    `Expected Duration: ${expectedDuration.label}`,
-                    `Additional Notes: ${additionalNotes.trim() || 'None'}`,
-                ];
-
-                return {
-                    email: requesterEmail,
-                    asset_id: null,
-                    type: 'ASSET_REQUEST',
-                    status: 'PENDING',
-                    reason: detailLines.join('\n'),
-                    approved_by: null,
-                    user_id: userRow.id,
-                    category: categoryValue,
-                    brand: null,
-                    model_no: null,
-                    quantity,
-                };
-            });
-
-            const { error: insertError } = await supabase
-                .from('request_table')
-                .insert(requests);
-
-            if (insertError) {
-             
-                Alert.alert('Error', insertError.message || 'Failed to submit asset request.');
-                return;
-            }
-
-            if (alreadyPendingCategories.size > 0) {
-                Alert.alert(
-                    'Partial Success',
-                    `${requests.length} request${requests.length > 1 ? 's' : ''} submitted. Skipped existing pending categories: ${Array.from(alreadyPendingCategories).join(', ')}`
-                );
-            } else {
-                Alert.alert('Success', `${requests.length} request${requests.length > 1 ? 's' : ''} submitted successfully.`);
-            }
-            resetForm();
-        } finally {
-            setIsSubmitting(false);
+        // Guard: make sure user is logged in
+        if (!user) {
+            Alert.alert('Error', 'You must be logged in to submit a request.');
+            return;
         }
+
+        // Build quantities object
+        const quantities: Record<string, number> = {};
+        selectedCategories.forEach((cat) => {
+            quantities[cat] = QUANTITY_REQUIRED_CATEGORIES.has(cat)
+                ? Number(categoryQuantities[cat])
+                : 1;
+        });
+
+        // Call the mutation — all Supabase logic is inside the hook
+        submitRequest.mutate(
+            {
+                email: user.email,
+                userId: user.id,
+                categories: selectedCategories,
+                quantities,
+                priorityLabel: priority.label,
+                expectedDurationLabel: expectedDuration.label,
+                reason,
+                additionalNotes,
+            },
+            {
+                onSuccess: () => resetForm(),
+                // onError is already handled inside useSubmitAssetRequest
+            }
+        );
     };
 
+    // ── CHANGE 6: Replace isSubmitting with submitRequest.isPending ─
+    const isSubmitting = submitRequest.isPending; // was: const [isSubmitting, setIsSubmitting] = useState(false)
+
+    // ── The entire JSX return stays exactly the same ───────────────
+    // Only difference: isSubmitting still works the same way in JSX,
+    // because we assigned submitRequest.isPending to a variable with the same name
     return (
         <FlatList
             data={[]}
@@ -333,6 +294,7 @@ export default function RequestAssetScreen() {
                                         className="flex-1 items-center rounded-xl bg-primary py-3"
                                         disabled={isSubmitting}
                                     >
+                                        {/* isSubmitting works the same as before in JSX — no JSX changes needed */}
                                         <Text className="font-semibold text-white">{isSubmitting ? 'Submitting...' : 'Submit Request'}</Text>
                                     </Pressable>
                                 </View>

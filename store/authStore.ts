@@ -6,7 +6,9 @@ export interface User {
     id: string;
     email: string;
     role: string;
-    [key: string]: any;
+    name?: string;       
+    department?: string; 
+    is_active?: boolean; 
 }
 
 interface AuthStore {

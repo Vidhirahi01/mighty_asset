@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { BadgeAlert, Bug, CheckCheck, GitPullRequestArrow } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { useAssetStats } from '@/hooks/queries/useAssets';
 
 type StatItem = {
     label: string;
@@ -14,13 +15,6 @@ type CategoryItem = {
     label: string;
     count: number;
 };
-
-const STATS: StatItem[] = [
-    { label: 'Total Assets', count: 5 },
-    { label: 'Available', count: 45 },
-    { label: 'Assigned', count: 123 },
-    { label: 'In Repair', count: 25 },
-];
 
 const POPULAR_CATEGORIES: CategoryItem[] = [
     { label: 'Laptops', count: 76 },
@@ -67,6 +61,13 @@ function CategoryCard({ item }: { item: CategoryItem }) {
 
 export default function OperationAssetsScreen() {
     const router = useRouter();
+    const { data: stats, isLoading } = useAssetStats();
+    const statItems: StatItem[] = [
+        { label: 'Total Assets', count: stats?.total ?? 0 },
+        { label: 'Available', count: stats?.available ?? 0 },
+        { label: 'Assigned', count: stats?.assigned ?? 0 },
+        { label: 'In Repair', count: stats?.inRepair ?? 0 },
+    ];
 
     return (
         <View className="flex-1 bg-background">
@@ -79,7 +80,7 @@ export default function OperationAssetsScreen() {
                     <View className="flex-row gap-2">
                         <FlatList
                             scrollEnabled={false}
-                            data={STATS}
+                            data={statItems}
                             renderItem={({ item }) => <MyCard item={item} />}
                             keyExtractor={(item) => item.label}
                             numColumns={2}
@@ -87,6 +88,9 @@ export default function OperationAssetsScreen() {
                         />
                     </View>
                 </View>
+                {isLoading ? (
+                    <Text className="mt-2 text-sm text-muted-foreground">Loading asset stats...</Text>
+                ) : null}
 
                 <Card className="mb-4 border border-border bg-card">
                     <CardHeader>

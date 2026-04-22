@@ -1,29 +1,36 @@
+// app/(admin)/users.tsx
 import { Input } from '@/components/ui/input';
 import { Plus, ChevronDown, Save, X, Search } from 'lucide-react-native';
 import { Text, View, ScrollView, FlatList, Pressable, Alert, ActivityIndicator } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+// FIX: removed useEffect — not needed anymore
+// FIX: removed fetchAllUsers, updateUser direct imports — now handled by hooks
 import CreateUserForm from './createUserForm';
-import { fetchAllUsers, updateUser } from '@/services/user.service';
+import { useUsers, useUpdateUser, User } from '@/hooks/queries/useUsers';
 
-interface User {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    department: string;
-    is_active: boolean;
-    created_at: string;
-}
+const DEPARTMENTS = ['All', 'IT', 'HR', 'Operations', 'Finance', 'Support', 'Engineering'];
+const ROLE_OPTIONS = ['ADMIN', 'MANAGER', 'EMPLOYEE', 'TECHNICIAN', 'OPERATION'];
+const ROLE_COLORS: Record<string, string> = {
+    ADMIN: 'text-rose-500 bg-rose-50',
+    MANAGER: 'text-violet-500 bg-violet-50',
+    EMPLOYEE: 'text-blue-500 bg-blue-50',
+    TECHNICIAN: 'text-amber-500 bg-amber-50',
+    OPERATION: 'text-teal-500 bg-teal-50',
+};
 
 export default function UsersScreen() {
+
+    // ── TanStack Query hooks ──────────────────────────────────────
+    const { data: users = [], isLoading, error } = useUsers();
+    const updateUserMutation = useUpdateUser();
+
+    // ── UI state only (no data fetching state needed anymore) ─────
     const [showCreateForm, setShowCreateForm] = useState(false);
-    const [users, setUsers] = useState<User[]>([]);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [selectedDepartment, setSelectedDepartment] = useState<string>('All');
     const [searchText, setSearchText] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [updating, setUpdating] = useState(false);
 
+    // Edit form fields
     const [editName, setEditName] = useState('');
     const [editEmail, setEditEmail] = useState('');
     const [editRole, setEditRole] = useState('');
@@ -32,23 +39,7 @@ export default function UsersScreen() {
     const [showRoleDropdown, setShowRoleDropdown] = useState(false);
     const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
 
-    const departments = ['All', 'IT', 'HR', 'Operations', 'Finance', 'Support', 'Engineering'];
-    const roleOptions = ['ADMIN', 'MANAGER', 'EMPLOYEE', 'TECHNICIAN', 'OPERATION'];
-
-    useEffect(() => { loadUsers(); }, []);
-
-    const loadUsers = async () => {
-        try {
-            setLoading(true);
-            const data = await fetchAllUsers() as User[];
-            setUsers(data);
-        } catch {
-            Alert.alert('Error', 'Failed to load users');
-        } finally {
-            setLoading(false);
-        }
-    };
-
+    // ── Handlers ──────────────────────────────────────────────────
     const handleSelectUser = (user: User) => {
         setSelectedUser(user);
         setEditName(user.name);
@@ -58,31 +49,38 @@ export default function UsersScreen() {
         setEditIsActive(user.is_active);
     };
 
-    const handleSaveUser = async () => {
+    const handleSaveUser = () => {
         if (!selectedUser) return;
         if (!editName.trim() || !editEmail.trim() || !editRole || !editDepartment) {
             Alert.alert('Error', 'All fields are required');
             return;
         }
-        try {
-            setUpdating(true);
-            await updateUser(selectedUser.id, {
-                name: editName.trim(),
-                email: editEmail.trim(),
-                role: editRole,
-                department: editDepartment,
-                is_active: editIsActive,
-            });
-            Alert.alert('Success', 'User updated successfully');
-            setSelectedUser(null);
-            loadUsers();
-        } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to update user');
-        } finally {
-            setUpdating(false);
-        }
+
+        updateUserMutation.mutate(
+            {
+                userId: selectedUser.id,
+                data: {
+                    name: editName.trim(),
+                    email: editEmail.trim(),
+                    role: editRole,
+                    department: editDepartment,
+                    is_active: editIsActive,
+                },
+            },
+            {
+                onSuccess: () => {
+                    Alert.alert('Success', 'User updated!');
+                    setSelectedUser(null);
+                    // No need to call loadUsers() — invalidateQueries auto-refreshes the list
+                },
+                onError: (err: any) => {
+                    Alert.alert('Error', err.message || 'Failed to update user');
+                },
+            }
+        );
     };
 
+    // ── Derived data ──────────────────────────────────────────────
     const filteredUsers = users.filter(user => {
         const matchesDept = selectedDepartment === 'All' || user.department === selectedDepartment;
         const matchesSearch =
@@ -91,33 +89,33 @@ export default function UsersScreen() {
         return matchesDept && matchesSearch;
     });
 
-    const roleColors: Record<string, string> = {
-        ADMIN: 'text-rose-500 bg-rose-50',
-        MANAGER: 'text-violet-500 bg-violet-50',
-        EMPLOYEE: 'text-blue-500 bg-blue-50',
-        TECHNICIAN: 'text-amber-500 bg-amber-50',
-        OPERATION: 'text-teal-500 bg-teal-50',
-    };
+    // isLoading from useQuery replaces the old manual 'loading' state
+    // isPending from useMutation replaces the old manual 'updating' state
+    const isUpdating = updateUserMutation.isPending;
 
+    // ── Early returns for loading/error ───────────────────────────
+    if (isLoading) return <ActivityIndicator size="large" color="#1b72fc" style={{ marginTop: 40 }} />;
+    if (error) return <Text style={{ margin: 20, color: 'red' }}>Failed to load users. Please restart.</Text>;
+
+    // ── Render ────────────────────────────────────────────────────
     const renderUserItem = ({ item }: { item: User }) => (
         <Pressable
             onPress={() => handleSelectUser(item)}
-            className={`bg-card border rounded-xl p-4 mb-2 flex-row items-center gap-3 ${selectedUser?.id === item.id ? 'border-primary bg-primary/5' : 'border-border'
-                }`}
+            className={`bg-card border rounded-xl p-4 mb-2 flex-row items-center gap-3 ${
+                selectedUser?.id === item.id ? 'border-primary bg-primary/5' : 'border-border'
+            }`}
         >
-            {/* Avatar */}
             <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center shrink-0">
                 <Text className="text-primary font-bold text-base">
                     {item.name?.charAt(0).toUpperCase()}
                 </Text>
             </View>
 
-            {/* Info */}
             <View className="flex-1 min-w-0">
                 <Text className="text-foreground font-semibold" numberOfLines={1}>{item.name}</Text>
                 <Text className="text-foreground/50 text-xs mt-0.5" numberOfLines={1}>{item.email}</Text>
                 <View className="flex-row gap-1.5 mt-1.5">
-                    <Text className={`text-xs font-semibold px-2 py-0.5 rounded-md ${roleColors[item.role] || 'text-primary bg-primary/10'}`}>
+                    <Text className={`text-xs font-semibold px-2 py-0.5 rounded-md ${ROLE_COLORS[item.role] || 'text-primary bg-primary/10'}`}>
                         {item.role}
                     </Text>
                     <Text className="text-xs font-semibold text-foreground/50 bg-accent-100 px-2 py-0.5 rounded-md">
@@ -126,7 +124,6 @@ export default function UsersScreen() {
                 </View>
             </View>
 
-            {/* Status dot */}
             <View className={`w-2.5 h-2.5 rounded-full shrink-0 ${item.is_active ? 'bg-green-500' : 'bg-red-400'}`} />
         </Pressable>
     );
@@ -135,7 +132,6 @@ export default function UsersScreen() {
         <View className="flex-1 bg-background">
             {/* Top bar */}
             <View className="px-5 pt-4 pb-3 gap-3">
-                {/* Search + Add row */}
                 <View className="flex-row gap-2 items-center">
                     <View className="flex-1 flex-row items-center bg-accent-100 border border-border rounded-xl px-3 gap-2">
                         <Search size={16} color="#9ca3af" />
@@ -160,17 +156,19 @@ export default function UsersScreen() {
                     style={{ flexGrow: 0 }}
                     contentContainerStyle={{ alignItems: 'center', gap: 6 }}
                 >
-                    {departments.map((dept) => (
+                    {DEPARTMENTS.map((dept) => (
                         <Pressable
                             key={dept}
                             onPress={() => setSelectedDepartment(dept)}
-                            className={`px-3 py-1.5 rounded-lg border ${selectedDepartment === dept
-                                ? 'bg-primary border-primary'
-                                : 'bg-accent-100 border-border'
-                                }`}
+                            className={`px-3 py-1.5 rounded-lg border ${
+                                selectedDepartment === dept
+                                    ? 'bg-primary border-primary'
+                                    : 'bg-accent-100 border-border'
+                            }`}
                         >
-                            <Text className={`text-xs font-semibold ${selectedDepartment === dept ? 'text-white' : 'text-foreground/70'
-                                }`}>
+                            <Text className={`text-xs font-semibold ${
+                                selectedDepartment === dept ? 'text-white' : 'text-foreground/70'
+                            }`}>
                                 {dept}
                             </Text>
                         </Pressable>
@@ -184,10 +182,8 @@ export default function UsersScreen() {
                 </Text>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-5 ">
-                {loading ? (
-                    <ActivityIndicator size="large" color="#1b72fc" className="mt-10" />
-                ) : filteredUsers.length === 0 ? (
+            <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-5">
+                {filteredUsers.length === 0 ? (
                     <View className="items-center mt-16 gap-2">
                         <Text className="text-foreground/30 text-4xl">👤</Text>
                         <Text className="text-foreground/40 text-sm">No users found</Text>
@@ -246,7 +242,7 @@ export default function UsersScreen() {
                             </Pressable>
                             {showRoleDropdown && (
                                 <View className="bg-card border border-border rounded-xl mt-1 overflow-hidden">
-                                    {roleOptions.map((role) => (
+                                    {ROLE_OPTIONS.map((role) => (
                                         <Pressable
                                             key={role}
                                             onPress={() => { setEditRole(role); setShowRoleDropdown(false); }}
@@ -272,7 +268,7 @@ export default function UsersScreen() {
                             </Pressable>
                             {showDepartmentDropdown && (
                                 <View className="bg-card border border-border rounded-xl mt-1 overflow-hidden max-h-40">
-                                    {departments.slice(1).map((dept) => (
+                                    {DEPARTMENTS.slice(1).map((dept) => (
                                         <Pressable
                                             key={dept}
                                             onPress={() => { setEditDepartment(dept); setShowDepartmentDropdown(false); }}
@@ -287,7 +283,6 @@ export default function UsersScreen() {
                             )}
                         </View>
 
-                        {/* Status */}
                         <View className="mb-5">
                             <Text className="text-foreground/60 text-xs font-semibold mb-1.5 uppercase tracking-wide">Status</Text>
                             <Pressable
@@ -306,13 +301,13 @@ export default function UsersScreen() {
                             </Pressable>
                         </View>
 
-                        {/* Save */}
+                        {/* FIX: disabled={isUpdating} uses mutation's isPending, not old 'updating' state */}
                         <Pressable
                             onPress={handleSaveUser}
-                            disabled={updating}
+                            disabled={isUpdating}
                             className="w-full bg-primary rounded-xl py-3 flex-row items-center justify-center gap-2"
                         >
-                            {updating ? (
+                            {isUpdating ? (
                                 <ActivityIndicator color="#ffffff" />
                             ) : (
                                 <>
@@ -324,12 +319,19 @@ export default function UsersScreen() {
                     </View>
                 )}
             </ScrollView>
+
             <View style={{ height: 160 }} />
 
+            {/*
+              FIX: onSuccess was wrongly set to {useUpdateUser} (the hook itself).
+              It should be a plain function () => setShowCreateForm(false).
+              The list auto-refreshes via invalidateQueries inside useCreateUser —
+              you do NOT need to pass loadUsers here anymore.
+            */}
             <CreateUserForm
                 isVisible={showCreateForm}
                 onClose={() => setShowCreateForm(false)}
-                onSuccess={loadUsers}
+                onSuccess={() => setShowCreateForm(false)}
             />
         </View>
     );
