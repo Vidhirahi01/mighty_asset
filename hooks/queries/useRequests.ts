@@ -1,8 +1,16 @@
 // hooks/queries/useRequests.ts
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { queryKeys } from '@/lib/queryKeys';
-import { submitAssetRequest, CreateAssetRequestInput, SubmitAssetRequestResult } from '@/services/request.service';
+import {
+    submitAssetRequest,
+    CreateAssetRequestInput,
+    SubmitAssetRequestResult,
+    getManagerRequests,
+    updateRequestStatus,
+    RequestStatus,
+    getRequestSummary,
+} from '@/services/request.service';
 
 export function useSubmitAssetRequest() {
     const queryClient = useQueryClient();
@@ -11,7 +19,7 @@ export function useSubmitAssetRequest() {
         mutationFn: submitAssetRequest,
 
         onSuccess: (result) => {
-            // Auto-refresh any screen that shows requests
+
             queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
 
             const { submittedCount, skippedCategories } = result;
@@ -34,5 +42,33 @@ export function useSubmitAssetRequest() {
                 Alert.alert('Error', error.message || 'Failed to submit asset request.');
             }
         },
+    });
+}
+
+export function useManagerRequests() {
+    return useQuery({
+        queryKey: queryKeys.requests.all,
+        queryFn: getManagerRequests,
+    });
+}
+
+export function useUpdateRequestStatus() {
+    const queryClient = useQueryClient();
+
+    return useMutation<void, Error, { requestId: string; status: RequestStatus }>({
+        mutationFn: ({ requestId, status }) => updateRequestStatus(requestId, status),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
+        },
+        onError: (error) => {
+            Alert.alert('Error', error.message || 'Failed to update request status.');
+        },
+    });
+}
+
+export function useRequestSummary() {
+    return useQuery({
+        queryKey: ['requests', 'summary'],
+        queryFn: getRequestSummary,
     });
 }

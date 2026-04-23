@@ -2,8 +2,10 @@ import React from 'react';
 import { View, ScrollView, Pressable } from 'react-native';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
-import { BarChart3, Users, CheckSquare, GitPullRequest, GitPullRequestArrow, CheckCheck, BadgeAlert, Bug, Check, X, Clock, Laptop, Monitor, Keyboard, Headphones, Package, AlertTriangle, TrendingDown } from 'lucide-react-native';
+import { GitPullRequestArrow, CheckCheck, BadgeAlert, Bug, Check, X, Clock, Laptop, Monitor, Keyboard, Headphones, Package, AlertTriangle, TrendingDown } from 'lucide-react-native';
 import { FlatList } from 'react-native-gesture-handler';
+import { useAssets } from '@/hooks/queries/useAssets';
+import { useManagerRequests, useRequestSummary } from '@/hooks/queries/useRequests';
 
 type StatItem = {
     label: string;
@@ -44,107 +46,43 @@ type InventoryAlert = {
     lastOrdered?: string;
 };
 
-const STATS: StatItem[] = [
-    { label: 'Pending Requests', count: 8 },
-    { label: 'Currently Assigned', count: 47 },
-    { label: 'Open Issues', count: 3 },
-    { label: 'Low Stock Item', count: 5 },
-];
 
-const PENDING_APPROVALS: ApprovalRequest[] = [
-    {
-        id: '1',
-        userName: 'John Smith',
-        assetName: 'Laptop Dell XPS 13',
-        priority: 'High',
-        submittedAt: '2 hours ago',
-        status: 'Pending',
-    },
-    {
-        id: '2',
-        userName: 'Sarah Johnson',
-        assetName: 'Monitor LG 27"',
-        priority: 'Medium',
-        submittedAt: '5 hours ago',
-        status: 'Pending',
-    },
-    {
-        id: '3',
-        userName: 'Mike Davis',
-        assetName: 'Keyboard Mechanical RGB',
-        priority: 'Low',
-        submittedAt: '1 day ago',
-        status: 'Pending',
-    },
-    {
-        id: '4',
-        userName: 'Emma Wilson',
-        assetName: 'USB-C Hub',
-        priority: 'Medium',
-        submittedAt: '3 hours ago',
-        status: 'Pending',
-    },
-];
 
-const ASSET_CATEGORIES: AssetCategory[] = [
-    { id: '1', name: 'Laptops', icon: Laptop, count: 24 },
-    { id: '2', name: 'Monitors', icon: Monitor, count: 18 },
-    { id: '3', name: 'Keyboards', icon: Keyboard, count: 32 },
-    { id: '4', name: 'Headphones', icon: Headphones, count: 15 },
-    { id: '5', name: 'Accessories', icon: Package, count: 48 },
-];
+const toTitle = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
-const ASSETS: Asset[] = [
-    { id: '1', name: 'Dell XPS 13', category: 'Laptops', quantity: 5, status: 'Available' },
-    { id: '2', name: 'MacBook Pro 16"', category: 'Laptops', quantity: 3, status: 'In Use' },
-    { id: '3', name: 'LG 27" 4K Monitor', category: 'Monitors', quantity: 8, status: 'Available' },
-    { id: '4', name: 'Dell 24" Monitor', category: 'Monitors', quantity: 10, status: 'Available' },
-    { id: '5', name: 'Mechanical RGB Keyboard', category: 'Keyboards', quantity: 12, status: 'In Use' },
-    { id: '6', name: 'Wireless Keyboard', category: 'Keyboards', quantity: 20, status: 'Available' },
-    { id: '7', name: 'Sony WH-1000XM5', category: 'Headphones', quantity: 4, status: 'Available' },
-    { id: '8', name: 'Bose QC45', category: 'Headphones', quantity: 11, status: 'In Use' },
-    { id: '9', name: 'USB-C Hub', category: 'Accessories', quantity: 15, status: 'Available' },
-    { id: '10', name: 'USB-A to USB-C Cable', category: 'Accessories', quantity: 33, status: 'Available' },
-];
+const normalizeAssetStatus = (value: string | null | undefined): Asset['status'] => {
+    const status = (value ?? '').toLowerCase().replace(/[_\s-]/g, '');
+    if (status === 'available') return 'Available';
+    if (status === 'assigned' || status === 'inuse') return 'In Use';
+    return 'Maintenance';
+};
 
-const INVENTORY_ALERTS: InventoryAlert[] = [
-    {
-        id: '1',
-        assetName: 'MacBook Pro 16"',
-        category: 'Laptops',
-        currentQuantity: 3,
-        minimumThreshold: 5,
-        severity: 'Critical',
-        lastOrdered: '3 days ago',
-    },
-    {
-        id: '2',
-        assetName: 'Sony WH-1000XM5',
-        category: 'Headphones',
-        currentQuantity: 4,
-        minimumThreshold: 8,
-        severity: 'Critical',
-        lastOrdered: '1 week ago',
-    },
-    {
-        id: '3',
-        assetName: 'Mechanical RGB Keyboard',
-        category: 'Keyboards',
-        currentQuantity: 12,
-        minimumThreshold: 15,
-        severity: 'Warning',
-        lastOrdered: '2 weeks ago',
-    },
-    {
-        id: '4',
-        assetName: 'Dell 24" Monitor',
-        category: 'Monitors',
-        currentQuantity: 10,
-        minimumThreshold: 12,
-        severity: 'Warning',
-        lastOrdered: '5 days ago',
-    },
-];
+const getPriorityFromReason = (reason: string | null): ApprovalRequest['priority'] => {
+    const line = (reason ?? '').split('\n').find((item) => item.startsWith('Priority: '));
+    const priority = line?.replace('Priority: ', '').trim().toLowerCase();
+    if (priority === 'high') return 'High';
+    if (priority === 'low') return 'Low';
+    return 'Medium';
+};
+
+const getRelativeTime = (isoDate: string) => {
+    const created = new Date(isoDate).getTime();
+    const diffMinutes = Math.max(1, Math.floor((Date.now() - created) / (1000 * 60)));
+    if (diffMinutes < 60) return `${diffMinutes} min ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours} hr ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+};
+
+const getCategoryIcon = (value: string) => {
+    const category = value.toLowerCase();
+    if (category.includes('laptop')) return Laptop;
+    if (category.includes('monitor')) return Monitor;
+    if (category.includes('keyboard')) return Keyboard;
+    if (category.includes('headphone')) return Headphones;
+    return Package;
+};
 
 function MyCard({ item }: { item: StatItem }) {
     const getIcon = (label: string) => {
@@ -214,6 +152,7 @@ function ApprovalRequestRow({ item, onPress }: { item: ApprovalRequest; onPress:
 }
 
 function CategoryPill({ category, isActive, onPress }: { category: AssetCategory; isActive?: boolean; onPress?: () => void }) {
+    
     const IconComponent = category.icon;
     return (
         <Pressable onPress={onPress}>
@@ -312,17 +251,96 @@ function InventoryAlertRow({ alert }: { alert: InventoryAlert }) {
 }
 
 export default function ManagerDashboard() {
+      const [selectedCategory, setSelectedCategory] = React.useState('All');
+
+  const { data: assets, isLoading } = useAssets(selectedCategory);
     const [activeCategory, setActiveCategory] = React.useState<string | null>(null);
+    const { data: assetsData = [], error: assetsError } = useAssets(selectedCategory);
+    const { data: managerRequests = [], error: requestsError } = useManagerRequests();
+    const { data: requestSummary } = useRequestSummary();
+
+    const assets: Asset[] = assetsData.map((row) => ({
+        id: String(row.id),
+        name: row.asset_name || 'Unnamed Asset',
+        category: toTitle(row.category || 'uncategorized'),
+        quantity: Number(row.quantity ?? 0),
+        status: normalizeAssetStatus(row.status),
+    }));
+
+    const pendingApprovalsFromDb: ApprovalRequest[] = managerRequests
+        .filter((row) => String(row.status).toUpperCase() === 'PENDING')
+        .slice(0, 6)
+        .map((row) => ({
+            id: row.id,
+            userName: row.requester_name || (row.email?.split('@')[0] || 'Employee').replace(/\./g, ' '),
+            assetName: `${toTitle(row.category || 'asset')}${row.quantity ? ` x${row.quantity}` : ''}`,
+            priority: getPriorityFromReason(row.reason),
+            submittedAt: getRelativeTime(row.created_at),
+            status: 'Pending',
+        }));
+
+    const pendingApprovals = pendingApprovalsFromDb;
+
+ const { data: assets, isLoading } = useAssets(selectedCategory);
+
+const data = assets ?? [];
+    const categoryCountMap = safeAssets.reduce<Record<string, number>>((acc, item) => {
+        acc[item.category] = (acc[item.category] ?? 0) + 1;
+        return acc;
+    }, {});
+
+    const assetCategories: AssetCategory[] = Object.entries(categoryCountMap)
+        .map(([name, count], index) => ({
+            id: `${index + 1}`,
+            name,
+            icon: getCategoryIcon(name),
+            count,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+    const inventoryAlertsFromDb: InventoryAlert[] = assetsData
+        .filter((row) => {
+            const qty = Number(row.quantity ?? 0);
+            const min = Number(row.minimum_stock_level ?? 0);
+            return min > 0 && qty < min;
+        })
+        .map((row) => {
+            const qty = Number(row.quantity ?? 0);
+            const min = Number(row.minimum_stock_level ?? 0);
+            return {
+                id: String(row.id),
+                assetName: row.asset_name || 'Unnamed Asset',
+                category: toTitle(row.category || 'uncategorized'),
+                currentQuantity: qty,
+                minimumThreshold: min,
+                severity: qty <= Math.floor(min / 2) ? 'Critical' : 'Warning',
+            } as InventoryAlert;
+        })
+        .sort((a, b) => a.currentQuantity - b.currentQuantity);
+
+    const inventoryAlerts: InventoryAlert[] = inventoryAlertsFromDb;
+
+    const stats: StatItem[] = [
+        { label: 'Pending Requests', count: requestSummary?.pendingApprovals ?? pendingApprovals.length },
+        { label: 'Currently Assigned', count: safeAssets.filter((item) => item.status === 'In Use').length },
+        { label: 'Open Issues', count: requestSummary?.openIssues ?? 0 },
+        { label: 'Low Stock Item', count: inventoryAlerts.length },
+    ];
 
     const filteredAssets = activeCategory
-        ? ASSETS.filter(asset => asset.category === activeCategory)
-        : ASSETS;
+        ? safeAssets.filter(asset => asset.category === activeCategory)
+        : safeAssets;
 
     return (
         <ScrollView className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
+                {assetsError || requestsError ? (
+                    <Text className="text-sm text-destructive">
+                        Live dashboard data could not be loaded from DB. Showing fallback values.
+                    </Text>
+                ) : null}
                 <FlatList
-                    data={STATS}
+                    data={stats}
                     keyExtractor={(item) => item.label}
                     numColumns={2}
                     contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 10 }}
@@ -339,7 +357,7 @@ export default function ManagerDashboard() {
                     </CardHeader>
                     <CardContent>
                         <FlatList
-                            data={PENDING_APPROVALS}
+                            data={pendingApprovals}
                             keyExtractor={(item) => item.id}
                             renderItem={({ item }) => (
                                 <ApprovalRequestRow
@@ -351,6 +369,7 @@ export default function ManagerDashboard() {
                                 />
                             )}
                             scrollEnabled={false}
+                            ListEmptyComponent={<Text className="text-foreground/60 text-sm">No pending approvals.</Text>}
                         />
                     </CardContent>
                 </Card>
@@ -363,7 +382,7 @@ export default function ManagerDashboard() {
                     </CardHeader>
                     <CardContent>
                         <FlatList
-                            data={ASSET_CATEGORIES}
+                            data={assetCategories}
                             keyExtractor={(item) => item.id}
                             horizontal
                             showsHorizontalScrollIndicator={false}
@@ -395,6 +414,7 @@ export default function ManagerDashboard() {
                             keyExtractor={(item) => item.id}
                             renderItem={({ item }) => <AssetRow asset={item} />}
                             scrollEnabled={false}
+                            ListEmptyComponent={<Text className="text-foreground/60 text-sm">No assets available.</Text>}
                         />
                     </CardContent>
                 </Card>
@@ -408,15 +428,16 @@ export default function ManagerDashboard() {
                             <Text >Inventory Alerts</Text>
                         </CardTitle>
                         <CardDescription className="text-foreground/60">
-                            {INVENTORY_ALERTS.length} items below minimum stock threshold
+                            {inventoryAlerts.length} items below minimum stock threshold
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <FlatList
-                            data={INVENTORY_ALERTS}
+                            data={inventoryAlerts}
                             keyExtractor={(item) => item.id}
                             renderItem={({ item }) => <InventoryAlertRow alert={item} />}
                             scrollEnabled={false}
+                            ListEmptyComponent={<Text className="text-foreground/60 text-sm">No inventory alerts.</Text>}
                         />
                     </CardContent>
                 </Card>

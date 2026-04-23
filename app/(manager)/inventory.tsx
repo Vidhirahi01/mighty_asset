@@ -1,17 +1,19 @@
+// app/(manager)/inventory.tsx
 import React from 'react';
-import { View, ScrollView, FlatList, Pressable, Alert, PressableStateCallbackType } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { View, ScrollView, FlatList, Pressable, Alert, PressableStateCallbackType, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { BadgeCheck, Sigma, UserRoundCheck, Wrench, AlertTriangle, ArrowLeft } from 'lucide-react-native';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useRouter } from 'expo-router';
+import { useAssets, useAssetStats } from '@/hooks/queries/useAssets';
+import { useManagerRequests, useUpdateRequestStatus } from '@/hooks/queries/useRequests';
 
-type StatItem = {
-    label: string;
-    count: number;
-};
+// ─── STAT CARD ────────────────────────────────────────────────────────────────
 
-type AssetCategory = {
+type StatItem = { label: string; count: number };
+type NormalizedAssetStatus = 'available' | 'assigned' | 'in_repair' | 'other';
+
+type CategoryBreakdown = {
     id: string;
     name: string;
     assigned: number;
@@ -31,58 +33,48 @@ type LowStockItem = {
 type StockRequest = {
     id: string;
     itemName: string;
+    status: string;
     requestType: 'add-stock' | 'set-reorder-alert';
     requestedBy: string;
     requestedAt: string;
-    status: 'Pending';
 };
 
-const STATS: StatItem[] = [
-    { label: 'Total Assets', count: 247 },
-    { label: 'Available', count: 68 },
-    { label: 'Assigned', count: 165 },
-    { label: 'In Repair', count: 14 },
-];
+const toTitle = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
-const ASSET_CATEGORIES: AssetCategory[] = [
-    { id: '1', name: 'Laptops', assigned: 45, available: 12, inRepair: 3 },
-    { id: '2', name: 'Monitors', assigned: 38, available: 15, inRepair: 2 },
-    { id: '3', name: 'Keyboards', assigned: 52, available: 18, inRepair: 4 },
-    { id: '4', name: 'Headphones', assigned: 22, available: 12, inRepair: 3 },
-    { id: '5', name: 'Accessories', assigned: 8, available: 11, inRepair: 2 },
-];
+const normalizeAssetStatus = (value: string | null | undefined): NormalizedAssetStatus => {
+    const status = (value ?? '').toLowerCase().replace(/[_\s-]/g, '');
+    if (status === 'available') return 'available';
+    if (status === 'assigned' || status === 'inuse') return 'assigned';
+    if (status === 'inrepair' || status === 'repair' || status === 'maintenance') return 'in_repair';
+    return 'other';
+};
 
-const LOW_STOCK_ITEMS: LowStockItem[] = [
-    { id: '1', name: 'MacBook Pro 16"', category: 'Laptops', currentStock: 3, minimumStock: 5, status: 'Critical' },
-    { id: '2', name: 'Dell XPS 13', category: 'Laptops', currentStock: 4, minimumStock: 5, status: 'Warning' },
-    { id: '3', name: 'Sony WH-1000XM5', category: 'Headphones', currentStock: 2, minimumStock: 8, status: 'Critical' },
-    { id: '4', name: 'Mechanical RGB Keyboard', category: 'Keyboards', currentStock: 5, minimumStock: 10, status: 'Warning' },
-];
+const getRelativeTime = (isoDate: string) => {
+    const created = new Date(isoDate).getTime();
+    const diffMinutes = Math.max(1, Math.floor((Date.now() - created) / (1000 * 60)));
 
-const PENDING_OPERATION_REQUESTS: StockRequest[] = [
-    {
-        id: 'REQ-STK-001',
-        itemName: 'MacBook Pro 16"',
-        requestType: 'add-stock',
-        requestedBy: 'Operation Team',
-        requestedAt: '2026-04-15 09:40',
-        status: 'Pending',
-    },
-    {
-        id: 'REQ-STK-002',
-        itemName: 'Mechanical RGB Keyboard',
-        requestType: 'set-reorder-alert',
-        requestedBy: 'Operation Team',
-        requestedAt: '2026-04-15 10:12',
-        status: 'Pending',
-    },
-];
+    if (diffMinutes < 60) return `${diffMinutes} min ago`;
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours} hr ago`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+};
+
+const getRequestType = (reason: string | null): StockRequest['requestType'] => {
+    const normalizedReason = (reason ?? '').toLowerCase();
+    if (normalizedReason.includes('reorder')) {
+        return 'set-reorder-alert';
+    }
+    return 'add-stock';
+};
 
 function MyCard({ item }: { item: StatItem }) {
     const getIcon = (label: string) => {
         const iconProps = { size: 24, color: '#ffffff', strokeWidth: 2 };
         switch (label) {
-            case 'Total Assets': return <Sigma  {...iconProps} />;
+            case 'Total Assets': return <Sigma {...iconProps} />;
             case 'Available': return <BadgeCheck {...iconProps} />;
             case 'Assigned': return <UserRoundCheck {...iconProps} />;
             case 'In Repair': return <Wrench {...iconProps} />;
@@ -102,10 +94,8 @@ function MyCard({ item }: { item: StatItem }) {
         </Card>
     );
 }
-
-function CategoryCard({ category }: { category: AssetCategory }) {
+function CategoryCard({ category }: { category: CategoryBreakdown }) {
     const total = category.assigned + category.available + category.inRepair;
-
     return (
         <Card className="bg-card border border-border rounded-lg overflow-hidden">
             <CardHeader>
@@ -135,90 +125,185 @@ function CategoryCard({ category }: { category: AssetCategory }) {
 }
 
 function LowStockCard({ item }: { item: LowStockItem }) {
-    const getSeverityColor = (status: string) => {
-        return status === 'Critical' ? '#ef4444' : '#f59e0b';
-    };
-
-    const shortage = item.minimumStock - item.currentStock;
-    const shortagePercent = Math.round((shortage / item.minimumStock) * 50);
+    const color = item.status === 'Critical' ? '#ef4444' : '#f59e0b';
+    const shortagePercent = Math.round((item.currentStock / item.minimumStock) * 100);
 
     return (
-        <View className="p-3 rounded-lg mb-2" style={{ backgroundColor: getSeverityColor(item.status) + '10', borderLeftWidth: 4, borderLeftColor: getSeverityColor(item.status) }}>
+        <View
+            className="p-3 rounded-lg mb-2"
+            style={{ backgroundColor: color + '10', borderLeftWidth: 4, borderLeftColor: color }}
+        >
             <View className="flex-row items-start justify-between mb-2">
                 <View className="flex-1 flex-row items-center gap-2">
-                    <AlertTriangle size={16} color={getSeverityColor(item.status)} strokeWidth={2} />
+                    <AlertTriangle size={16} color={color} strokeWidth={2} />
                     <View className="flex-1">
                         <Text className="text-foreground font-semibold text-sm">{item.name}</Text>
                         <Text className="text-foreground/60 text-xs mt-1">{item.category}</Text>
                     </View>
                 </View>
-                <View style={{ backgroundColor: getSeverityColor(item.status) + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                    <Text style={{ color: getSeverityColor(item.status), fontSize: 11, fontWeight: '600' }}>
-                        {item.status}
-                    </Text>
+                <View style={{ backgroundColor: color + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                    <Text style={{ color, fontSize: 11, fontWeight: '600' }}>{item.status}</Text>
                 </View>
             </View>
             <View className="flex-row items-center justify-between">
                 <View className="flex-1">
-                    <Text className="text-foreground/60 text-xs mb-1">Stock: {item.currentStock} / Min: {item.minimumStock}</Text>
+                    <Text className="text-foreground/60 text-xs mb-1">
+                        Stock: {item.currentStock} / Min: {item.minimumStock}
+                    </Text>
                     <View className="h-1.5 bg-foreground/10 rounded-full overflow-hidden">
                         <View
                             className="h-full rounded-full"
-                            style={{ backgroundColor: getSeverityColor(item.status), width: `${Math.min(100, (item.currentStock / item.minimumStock) * 100)}%` }}
+                            style={{ backgroundColor: color, width: `${Math.min(100, shortagePercent)}%` }}
                         />
                     </View>
                 </View>
-                <Text className="text-foreground/50 text-xs ml-3 min-w-12 text-right">{shortagePercent}% low</Text>
+                <Text className="text-foreground/50 text-xs ml-3 min-w-12 text-right">
+                    {shortagePercent}% left
+                </Text>
             </View>
         </View>
     );
 }
+
+// ─── MAIN SCREEN ─────────────────────────────────────────────────────────────
 
 export default function InventoryScreen() {
     const { mode } = useLocalSearchParams<{ mode?: string }>();
     const router = useRouter();
     const isOperationsMode = mode === 'operations';
 
-    const openInventoryActionDrawer = (action?: StockRequest['requestType']) => {
-        if (action) {
-            router.push({
-                pathname: '/dashboard',
-                params: {
-                    openAddAsset: '1',
-                    stockAction: action,
-                },
-            });
-            return;
+    const { data: stats, isLoading: statsLoading } = useAssetStats();
+    const { data: assets = [], isLoading: assetsLoading } = useAssets();
+    const { data: managerRequests = [], isLoading: requestsLoading } = useManagerRequests();
+
+    const updateRequestStatus = useUpdateRequestStatus();
+
+    const categories: CategoryBreakdown[] = React.useMemo(() => {
+        const map = new Map<string, CategoryBreakdown>();
+
+        for (const asset of assets) {
+            const categoryName = toTitle(asset.category ?? 'uncategorized');
+            const existing = map.get(categoryName) ?? {
+                id: categoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                name: categoryName,
+                assigned: 0,
+                available: 0,
+                inRepair: 0,
+            };
+
+            const status = normalizeAssetStatus(asset.status);
+            if (status === 'assigned') existing.assigned += 1;
+            if (status === 'available') existing.available += 1;
+            if (status === 'in_repair') existing.inRepair += 1;
+
+            map.set(categoryName, existing);
         }
 
+        return Array.from(map.values());
+    }, [assets]);
+
+    const lowStockItems: LowStockItem[] = React.useMemo(() => {
+        return assets
+            .filter((asset) => {
+                const quantity = Number(asset.quantity ?? 0);
+                const minimum = Number(asset.minimum_stock_level ?? 0);
+                return minimum > 0 && quantity < minimum;
+            })
+            .map((asset) => {
+                const currentStock = Number(asset.quantity ?? 0);
+                const minimumStock = Number(asset.minimum_stock_level ?? 0);
+
+                return {
+                    id: String(asset.id),
+                    name: asset.asset_name || 'Unnamed Asset',
+                    category: toTitle(asset.category ?? 'uncategorized'),
+                    currentStock,
+                    minimumStock,
+                    status: currentStock <= Math.floor(minimumStock / 2) ? 'Critical' : 'Warning',
+                };
+            });
+    }, [assets]);
+
+    const stockRequests: StockRequest[] = React.useMemo(() => {
+        return managerRequests
+            .filter((request) => String(request.status).toUpperCase() === 'PENDING')
+            .map((request) => {
+                const requestedBy =
+                    request.requester_name ||
+                    (request.email?.split('@')[0] || 'Operations Team').replace(/\./g, ' ');
+                const quantityText = request.quantity ? ` x${request.quantity}` : '';
+
+                return {
+                    id: request.id,
+                    itemName: `${toTitle(request.category || 'asset')}${quantityText}`,
+                    status: String(request.status).toUpperCase(),
+                    requestType: getRequestType(request.reason),
+                    requestedBy,
+                    requestedAt: getRelativeTime(request.created_at),
+                };
+            });
+    }, [managerRequests]);
+
+    // Build stats array for the cards — falls back to 0 while loading
+    const STATS: StatItem[] = [
+        { label: 'Total Assets', count: stats?.total ?? 0 },
+        { label: 'Available', count: stats?.available ?? 0 },
+        { label: 'Assigned', count: stats?.assigned ?? 0 },
+        { label: 'In Repair', count: stats?.inRepair ?? 0 },
+    ];
+
+    const openInventoryActionDrawer = (action?: StockRequest['requestType']) => {
         router.push({
             pathname: '/dashboard',
-            params: {
-                openAddAsset: '1',
-            },
+            params: action ? { openAddAsset: '1', stockAction: action } : { openAddAsset: '1' },
         });
     };
 
+    // ── CHANGE: approve now calls Supabase and auto-refreshes the list ────────
     const handleApprove = (requestId: string) => {
-        Alert.alert('Approved', `Request ${requestId} approved by manager.`);
+        Alert.alert('Approve Request', 'Are you sure?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Approve',
+                onPress: () =>
+                    updateRequestStatus.mutate({ requestId, status: 'APPROVED' }, {
+                        onSuccess: () => Alert.alert('Approved', 'Request approved successfully.'),
+                        onError: (err: Error) => Alert.alert('Error', err.message || 'Failed to approve.'),
+                    }),
+            },
+        ]);
     };
 
+    // ── CHANGE: reject now calls Supabase and auto-refreshes the list ─────────
     const handleReject = (requestId: string) => {
-        Alert.alert('Rejected', `Request ${requestId} rejected by manager.`);
+        Alert.alert('Reject Request', 'Are you sure?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Reject',
+                style: 'destructive',
+                onPress: () =>
+                    updateRequestStatus.mutate({ requestId, status: 'REJECTED' }, {
+                        onSuccess: () => Alert.alert('Rejected', 'Request rejected.'),
+                        onError: (err: Error) => Alert.alert('Error', err.message || 'Failed to reject.'),
+                    }),
+            },
+        ]);
     };
 
-    const getRequestTypeLabel = (type: StockRequest['requestType']) => {
-        if (type === 'add-stock') return 'Add Stock';
-        return 'Set Reorder Alert';
-    };
+    const getRequestTypeLabel = (type: StockRequest['requestType']) =>
+        type === 'add-stock' ? 'Add Stock' : 'Set Reorder Alert';
 
     const quickActionPressStyle = ({ pressed }: PressableStateCallbackType) => ({
         opacity: pressed ? 0.9 : 1,
         transform: [{ scale: pressed ? 0.98 : 1 }],
     });
 
+    const categoriesLoading = assetsLoading;
+    const lowStockLoading = assetsLoading;
+    const isLoading = statsLoading || assetsLoading;
+
     return (
-        <ScrollView className="flex-1 bg-background " showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
                 {isOperationsMode && (
                     <Pressable
@@ -242,22 +327,29 @@ export default function InventoryScreen() {
                     </CardContent>
                 </Card>
 
-                {/* Stats Cards */}
-                <FlatList
-                    data={STATS}
-                    keyExtractor={(item) => item.label}
-                    numColumns={2}
-                    contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 10 }}
-                    columnWrapperStyle={{ justifyContent: 'space-between' }}
-                    renderItem={({ item }) => <MyCard item={item} />}
-                    scrollEnabled={false}
-                />
+                {/* ── Stats Cards — real data, shows 0 while loading ── */}
+                {isLoading ? (
+                    <ActivityIndicator size="large" color="#1b72fc" style={{ marginVertical: 20 }} />
+                ) : (
+                    <FlatList
+                        data={STATS}
+                        keyExtractor={(item) => item.label}
+                        numColumns={2}
+                        contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 10 }}
+                        columnWrapperStyle={{ justifyContent: 'space-between' }}
+                        renderItem={({ item }) => <MyCard item={item} />}
+                        scrollEnabled={false}
+                    />
+                )}
 
+                {/* ── Quick Actions (Operations only) ── */}
                 {isOperationsMode && (
-                    <Card className="bg-card border border-border rounded-xl ">
+                    <Card className="bg-card border border-border rounded-xl">
                         <CardHeader>
                             <CardTitle className="text-foreground text-lg">Quick Actions</CardTitle>
-                            <CardDescription className="text-foreground/60">Low stock recharge or new stock bulk update</CardDescription>
+                            <CardDescription className="text-foreground/60">
+                                Low stock recharge or new stock bulk update
+                            </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <View className="gap-3">
@@ -280,54 +372,92 @@ export default function InventoryScreen() {
                     </Card>
                 )}
 
+                {/* ── Operation Requests (Manager only) — real data ── */}
                 {!isOperationsMode && (
                     <Card className="bg-card border border-border rounded-xl">
                         <CardHeader>
                             <CardTitle className="text-foreground text-lg">Operation Requests</CardTitle>
-                            <CardDescription className="text-foreground/60">Approve or reject pending stock requests</CardDescription>
+                            <CardDescription className="text-foreground/60">
+                                {requestsLoading
+                                    ? 'Loading...'
+                                    : `${stockRequests.length} pending request${stockRequests.length !== 1 ? 's' : ''}`}
+                            </CardDescription>
                         </CardHeader>
                         <CardContent className="gap-2">
-                            {PENDING_OPERATION_REQUESTS.map((request) => (
-                                <View key={request.id} className="rounded-lg border border-border p-3">
-                                    <View className="flex-row items-center justify-between">
-                                        <Text className="text-sm font-semibold text-foreground">{request.itemName}</Text>
-                                        <View className="rounded-full bg-amber-500/20 px-2 py-1">
-                                            <Text className="text-[10px] font-bold text-amber-700">{request.status}</Text>
+                            {requestsLoading ? (
+                                <ActivityIndicator color="#1b72fc" />
+                            ) : stockRequests.length === 0 ? (
+                                <Text className="text-foreground/40 text-sm text-center py-4">
+                                    No pending requests
+                                </Text>
+                            ) : (
+                                stockRequests.map((request) => (
+                                    <View key={request.id} className="rounded-lg border border-border p-3">
+                                        <View className="flex-row items-center justify-between">
+                                            <Text className="text-sm font-semibold text-foreground">
+                                                {request.itemName}
+                                            </Text>
+                                            <View className="rounded-full bg-amber-500/20 px-2 py-1">
+                                                <Text className="text-[10px] font-bold text-amber-700">
+                                                    {request.status}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                        <Text className="text-xs text-foreground/70 mt-1">
+                                            {getRequestTypeLabel(request.requestType)}
+                                        </Text>
+                                        <Text className="text-xs text-foreground/60">
+                                            {request.requestedBy} • {request.requestedAt}
+                                        </Text>
+                                        <View className="flex-row gap-2 mt-3">
+                                            <Pressable
+                                                onPress={() => handleApprove(request.id)}
+                                                disabled={updateRequestStatus.isPending}
+                                                className="rounded-md bg-emerald-600 px-3 py-1.5"
+                                            >
+                                                <Text className="text-xs font-semibold text-white">Approve</Text>
+                                            </Pressable>
+                                            <Pressable
+                                                onPress={() => handleReject(request.id)}
+                                                disabled={updateRequestStatus.isPending}
+                                                className="rounded-md bg-red-600 px-3 py-1.5"
+                                            >
+                                                <Text className="text-xs font-semibold text-white">Reject</Text>
+                                            </Pressable>
                                         </View>
                                     </View>
-                                    <Text className="text-xs text-foreground/70 mt-1">{getRequestTypeLabel(request.requestType)}</Text>
-                                    <Text className="text-xs text-foreground/60">{request.requestedBy} • {request.requestedAt}</Text>
-                                    <View className="flex-row gap-2 mt-3">
-                                        <Pressable onPress={() => handleApprove(request.id)} className="rounded-md bg-emerald-600 px-3 py-1.5">
-                                            <Text className="text-xs font-semibold text-white">Approve</Text>
-                                        </Pressable>
-                                        <Pressable onPress={() => handleReject(request.id)} className="rounded-md bg-red-600 px-3 py-1.5">
-                                            <Text className="text-xs font-semibold text-white">Reject</Text>
-                                        </Pressable>
-                                    </View>
-                                </View>
-                            ))}
+                                ))
+                            )}
                         </CardContent>
                     </Card>
                 )}
 
-                {/* Category-wise Assets */}
+                {/* ── Assets by Category — real data ── */}
                 <Card className="bg-card border border-border rounded-xl">
                     <CardHeader>
                         <CardTitle className="text-foreground text-lg">Assets by Category</CardTitle>
-                        <CardDescription className="text-foreground/60">View inventory status by category</CardDescription>
+                        <CardDescription className="text-foreground/60">
+                            View inventory status by category
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <FlatList
-                            data={ASSET_CATEGORIES}
-                            keyExtractor={(item) => item.id}
-                            renderItem={({ item }) => <CategoryCard category={item} />}
-                            scrollEnabled={false}
-                            contentContainerStyle={{ gap: 12 }}
-                        />
+                        {categoriesLoading ? (
+                            <ActivityIndicator color="#1b72fc" />
+                        ) : categories.length === 0 ? (
+                            <Text className="text-foreground/40 text-sm text-center py-4">No assets found</Text>
+                        ) : (
+                            <FlatList
+                                data={categories}
+                                keyExtractor={(item) => item.id}
+                                renderItem={({ item }) => <CategoryCard category={item} />}
+                                scrollEnabled={false}
+                                contentContainerStyle={{ gap: 12 }}
+                            />
+                        )}
                     </CardContent>
                 </Card>
 
+                {/* ── Low Stock Items — real data ── */}
                 <Card className="bg-card border border-destructive/30 rounded-xl">
                     <CardHeader>
                         <CardTitle className="text-foreground text-lg flex-row items-center gap-2">
@@ -335,20 +465,30 @@ export default function InventoryScreen() {
                             <Text>Low Stock Items</Text>
                         </CardTitle>
                         <CardDescription className="text-foreground/60">
-                            {LOW_STOCK_ITEMS.length} items below minimum threshold
+                            {lowStockLoading
+                                ? 'Checking stock levels...'
+                                : `${lowStockItems.length} item${lowStockItems.length !== 1 ? 's' : ''} below minimum threshold`}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <FlatList
-                            data={LOW_STOCK_ITEMS}
-                            keyExtractor={(item) => item.id}
-                            renderItem={({ item }) => <LowStockCard item={item} />}
-                            scrollEnabled={false}
-                        />
+                        {lowStockLoading ? (
+                            <ActivityIndicator color="#ef4444" />
+                        ) : lowStockItems.length === 0 ? (
+                            <Text className="text-foreground/40 text-sm text-center py-4">
+                                ✅ All stock levels are healthy
+                            </Text>
+                        ) : (
+                            <FlatList
+                                data={lowStockItems}
+                                keyExtractor={(item) => item.id}
+                                renderItem={({ item }) => <LowStockCard item={item} />}
+                                scrollEnabled={false}
+                            />
+                        )}
                     </CardContent>
                 </Card>
             </View>
-            {/* Spacer for bottom tab bar */}
+
             <View style={{ height: 160 }} />
         </ScrollView>
     );

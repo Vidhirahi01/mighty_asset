@@ -6,14 +6,12 @@ export const queryKeys = {
         byId: (id: string) => ['users', 'by-id', id] as const,
     },
 
-    // Assets
     assets: {
         all: ['assets', 'all'] as const,
         byCategory: (category: string) => ['assets', 'by-category', category] as const,
         stats: ['assets', 'stats'] as const,
     },
 
-    // Requests
     requests: {
         list: (userId: string) => ['requests', 'list', userId] as const,
         pendingByCategories: (userId: string, categories: string[]) =>

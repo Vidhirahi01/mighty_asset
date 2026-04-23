@@ -3,10 +3,18 @@ import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { getAssets } from '@/services/asset.service';
 
-export function useAssets() {
+const AssetStatus = (value: string | null | undefined) => {
+    const status = (value ?? '').toLowerCase().replace(/[_\s-]/g, '');
+    if (status === 'available') return 'available';
+    if (status === 'assigned' || status === 'inuse') return 'assigned';
+    if (status === 'inrepair' || status === 'repair' || status === 'maintenance') return 'in_repair';
+    return 'other';
+};
+
+export function useAssets(category?: string) {
     return useQuery({
-        queryKey: queryKeys.assets.all,
-        queryFn: getAssets,
+        queryKey: [...queryKeys.assets.all, category],
+        queryFn: () => getAssets(category),
     });
 }
 
@@ -17,9 +25,9 @@ export function useAssetStats() {
             const assets = await getAssets();
             return {
                 total: assets.length,
-                available: assets.filter(a => a.status === 'available').length,
-                assigned: assets.filter(a => a.status === 'assigned').length,
-                inRepair: assets.filter(a => a.status === 'in_repair').length,
+                available: assets.filter(a => AssetStatus(a.status) === 'available').length,
+                assigned: assets.filter(a => AssetStatus(a.status) === 'assigned').length,
+                inRepair: assets.filter(a => AssetStatus(a.status) === 'in_repair').length,
             };
         },
     });

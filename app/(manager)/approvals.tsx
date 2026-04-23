@@ -4,6 +4,7 @@ import { Text } from '@/components/ui/text';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check, X, Clock, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react-native';
 import { FlatList } from 'react-native-gesture-handler';
+import { useManagerRequests, useUpdateRequestStatus } from '@/hooks/queries/useRequests';
 
 
 type ApprovalRequest = {
@@ -19,72 +20,72 @@ type ApprovalRequest = {
     status: 'Pending' | 'Approved' | 'Rejected';
 };
 
-const APPROVAL_REQUESTS: ApprovalRequest[] = [
-    {
-        id: '1',
-        userName: 'John Smith',
-        userEmail: 'john@company.com',
-        assetName: 'Laptop Dell XPS 13',
-        assetCategory: 'Laptops',
-        reason: 'Need for new project work',
-        priority: 'High',
-        submittedAt: '2 hours ago',
-        requiredBy: 'Today',
-        status: 'Pending',
-    },
-    {
-        id: '2',
-        userName: 'Sarah Johnson',
-        userEmail: 'sarah@company.com',
-        assetName: 'Monitor LG 27"',
-        assetCategory: 'Monitors',
-        reason: 'Dual monitor setup requested',
-        priority: 'Medium',
-        submittedAt: '5 hours ago',
-        requiredBy: '2 days',
-        status: 'Pending',
-    },
-    {
-        id: '3',
-        userName: 'Mike Davis',
-        userEmail: 'mike@company.com',
-        assetName: 'Keyboard Mechanical RGB',
-        assetCategory: 'Keyboards',
-        reason: 'Replacement for damaged keyboard',
-        priority: 'Low',
-        submittedAt: '1 day ago',
-        requiredBy: 'Week',
-        status: 'Pending',
-    },
-    {
-        id: '4',
-        userName: 'Emma Wilson',
-        userEmail: 'emma@company.com',
-        assetName: 'USB-C Hub',
-        assetCategory: 'Accessories',
-        reason: 'For better connectivity',
-        priority: 'Medium',
-        submittedAt: '3 hours ago',
-        requiredBy: 'Tomorrow',
-        status: 'Pending',
-    },
-];
+const normalizeStatus = (status: string | null): ApprovalRequest['status'] => {
+    if (status === 'APPROVED') return 'Approved';
+    if (status === 'REJECTED') return 'Rejected';
+    return 'Pending';
+};
+
+const getTimeAgo = (value: string) => {
+    const timestamp = new Date(value).getTime();
+    const diffMs = Date.now() - timestamp;
+    const mins = Math.max(1, Math.floor(diffMs / (1000 * 60)));
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hr ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+};
+
+const parseReasonSummary = (reason: string | null) => {
+    const text = reason ?? '';
+    const titleLine = text.split('\n').find((line) => line.startsWith('Title: '));
+    const clean = titleLine ? titleLine.replace('Title: ', '').trim() : text;
+    return clean || 'No reason provided';
+};
+
+const parsePriority = (reason: string | null): ApprovalRequest['priority'] => {
+    const text = reason ?? '';
+    const priorityLine = text.split('\n').find((line) => line.startsWith('Priority: '));
+    const priority = priorityLine?.replace('Priority: ', '').trim().toLowerCase();
+    if (priority === 'high') return 'High';
+    if (priority === 'low') return 'Low';
+    return 'Medium';
+};
+
+const parseRequiredBy = (reason: string | null) => {
+    const text = reason ?? '';
+    const line = text.split('\n').find((item) => item.startsWith('Expected Duration: '));
+    return line ? line.replace('Expected Duration: ', '').trim() : 'Not specified';
+};
 
 export default function ApprovalsScreen() {
-    const [approvals, setApprovals] = useState(APPROVAL_REQUESTS);
+    const { data: managerRows = [], isLoading } = useManagerRequests();
+    const updateStatusMutation = useUpdateRequestStatus();
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [holdingRequestId, setHoldingRequestId] = useState<string | null>(null);
     const [holdMessage, setHoldMessage] = useState('');
+
+    const approvals: ApprovalRequest[] = managerRows.map((row) => ({
+        id: row.id,
+        userName: row.email?.split('@')[0] || 'Employee',
+        userEmail: row.email || 'unknown@company.com',
+        assetName: `${row.category || 'asset'}${row.quantity ? ` x${row.quantity}` : ''}`,
+        assetCategory: row.category || 'Uncategorized',
+        reason: parseReasonSummary(row.reason),
+        priority: parsePriority(row.reason),
+        submittedAt: getTimeAgo(row.created_at),
+        requiredBy: parseRequiredBy(row.reason),
+        status: normalizeStatus(row.status),
+    }));
 
     const handleApprove = (id: string) => {
         Alert.alert('Approve Request', 'Are you sure you want to approve this request?', [
             { text: 'Cancel', style: 'cancel' },
             {
                 text: 'Approve',
-                onPress: () => {
-                    setApprovals(approvals.map(a =>
-                        a.id === id ? { ...a, status: 'Approved' } : a
-                    ));
+                onPress: async () => {
+                    await updateStatusMutation.mutateAsync({ requestId: id, status: 'APPROVED' });
                     setExpandedId(null);
                     Alert.alert('Success', 'Request approved!');
                 },
@@ -98,10 +99,8 @@ export default function ApprovalsScreen() {
             { text: 'Cancel', style: 'cancel' },
             {
                 text: 'Reject',
-                onPress: () => {
-                    setApprovals(approvals.map(a =>
-                        a.id === id ? { ...a, status: 'Rejected' } : a
-                    ));
+                onPress: async () => {
+                    await updateStatusMutation.mutateAsync({ requestId: id, status: 'REJECTED' });
                     setExpandedId(null);
                     Alert.alert('Success', 'Request rejected!');
                 },
@@ -192,6 +191,7 @@ export default function ApprovalsScreen() {
                         <CardDescription className="text-foreground/60">Click to view and manage requests</CardDescription>
                     </CardHeader>
                     <CardContent>
+                        {isLoading ? <Text className="mb-3 text-sm text-foreground/60">Loading requests...</Text> : null}
                         <FlatList
                             data={approvals}
                             keyExtractor={(item) => item.id}
