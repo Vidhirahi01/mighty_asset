@@ -341,7 +341,6 @@ export default function ManagerDashboard() {
                                     category={item}
                                     isActive={activeCategory === item.value}
                                     onPress={() =>
-                                        // Tap active pill → reset to All. Tap another → set it.
                                         setActiveCategory(activeCategory === item.value ? 'All' : item.value)
                                     }
                                 />

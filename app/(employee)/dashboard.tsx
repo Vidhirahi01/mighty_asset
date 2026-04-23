@@ -1,9 +1,11 @@
 import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
-import { AlertCircle, BriefcaseBusiness, Users2, Settings, History, Briefcase, Plus, PackagePlusIcon } from 'lucide-react-native';
+import { AlertCircle, BriefcaseBusiness, History, Briefcase, Plus, PackagePlusIcon } from 'lucide-react-native';
 import { FlatList } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '@/store/authStore';
+import { useEmployeeAssignedAssets, useEmployeeOpenIssueCount } from '@/hooks/queries/useRequests';
 
 
 type QuickAction = {
@@ -49,6 +51,10 @@ function QuickActions({ item, onPress }: { item: QuickAction; onPress: () => voi
 }
 export default function EmployeeDashboard() {
     const router = useRouter();
+    const user = useAuthStore((state) => state.user);
+
+    const { data: assignedAssets = [] } = useEmployeeAssignedAssets(user?.id, user?.email);
+    const { data: activeIssues = 0 } = useEmployeeOpenIssueCount(user?.id, user?.email);
 
     const handleQuickActionPress = (action: QuickAction) => {
         if (action.Label === 'Request Asset') {
@@ -91,7 +97,7 @@ export default function EmployeeDashboard() {
                             </View>
                         </CardHeader>
                         <CardContent>
-                            <Text className="text-3xl font-bold text-foreground">0</Text>
+                            <Text className="text-3xl font-bold text-foreground">{assignedAssets.length}</Text>
                             <Text className="text-xs text-foreground/60 mt-1">Currently assigned</Text>
                         </CardContent>
                     </Card>
@@ -104,7 +110,7 @@ export default function EmployeeDashboard() {
                             </View>
                         </CardHeader>
                         <CardContent>
-                            <Text className="text-3xl font-bold text-foreground">0</Text>
+                            <Text className="text-3xl font-bold text-foreground">{activeIssues}</Text>
                             <Text className="text-xs text-foreground/60 mt-1">Open issues</Text>
                         </CardContent>
                     </Card>

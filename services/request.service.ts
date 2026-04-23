@@ -36,6 +36,23 @@ export type RequestSummary = {
     openIssues: number;
 };
 
+export type EmployeeAssignedAsset = {
+    requestId: string;
+    assetId: string | null;
+    assetName: string;
+    category: string;
+    quantity: number;
+    status: RequestStatus;
+    approvedAt: string;
+    requestedBy: string | null;
+    reason: string | null;
+    brand: string | null;
+    modelNo: string | null;
+    condition: string | null;
+    note: string | null;
+    imageUrl: string | null;
+};
+
 export async function getUserByEmail(email: string) {
     const { data, error } = await supabase
         .from('user_table')
@@ -197,4 +214,160 @@ export async function getRequestSummary(): Promise<RequestSummary> {
         pendingApprovals,
         openIssues,
     };
+}
+
+export async function getApprovedAssetsForUser(params: {
+    userId?: string | null;
+    email?: string | null;
+}): Promise<EmployeeAssignedAsset[]> {
+    const userId = params.userId?.trim() || null;
+    const email = params.email?.trim() || null;
+
+    if (!userId && !email) {
+        return [];
+    }
+
+    let query = supabase
+        .from('request_table')
+        .select('id, created_at, email, user_id, category, quantity, reason, status, type, asset_id')
+        .eq('status', 'APPROVED');
+
+    if (userId && email) {
+        query = query.or(`user_id.eq.${userId},email.eq.${email}`);
+    } else if (userId) {
+        query = query.eq('user_id', userId);
+    } else if (email) {
+        query = query.eq('email', email);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    const approvedRows = ((data ?? []) as Array<{
+        id: string;
+        created_at: string;
+        email: string | null;
+        user_id: string | null;
+        category: string | null;
+        quantity: number | null;
+        reason: string | null;
+        status: RequestStatus;
+        type: string | null;
+        asset_id: string | null;
+    }>).filter((row) => {
+        const type = String(row.type ?? '').toUpperCase();
+        return type === 'ASSET_REQUEST' || type === 'ASSET-REQUEST' || type === 'ASSETREQUEST';
+    });
+
+    if (approvedRows.length === 0) {
+        return [];
+    }
+
+    const assetIds = Array.from(
+        new Set(
+            approvedRows
+                .map((row) => row.asset_id)
+                .filter((id): id is string => Boolean(id))
+        )
+    );
+
+    let assetMap = new Map<string, {
+        asset_name: string | null;
+        category: string | null;
+        brand: string | null;
+        model_no: string | null;
+        condition: string | null;
+        note: string | null;
+        image_url: string | null;
+    }>();
+
+    if (assetIds.length > 0) {
+        const { data: assets, error: assetError } = await supabase
+            .from('asset_table')
+            .select('id, asset_name, category, brand, model_no, condition, note, image_url')
+            .in('id', assetIds);
+
+        if (assetError) {
+            throw new Error(assetError.message);
+        }
+
+        assetMap = new Map(
+            ((assets ?? []) as Array<{
+                id: string;
+                asset_name: string | null;
+                category: string | null;
+                brand: string | null;
+                model_no: string | null;
+                condition: string | null;
+                note: string | null;
+                image_url: string | null;
+            }>).map((asset) => [asset.id, asset])
+        );
+    }
+
+    return approvedRows.map((row) => {
+        const asset = row.asset_id ? assetMap.get(row.asset_id) : undefined;
+        const fallbackCategory = row.category || 'uncategorized';
+        const displayCategory = asset?.category || fallbackCategory;
+        const assetName = asset?.asset_name || `${displayCategory} asset`;
+
+        return {
+            requestId: row.id,
+            assetId: row.asset_id,
+            assetName,
+            category: displayCategory,
+            quantity: Number(row.quantity ?? 1),
+            status: row.status,
+            approvedAt: row.created_at,
+            requestedBy: row.email,
+            reason: row.reason,
+            brand: asset?.brand || null,
+            modelNo: asset?.model_no || null,
+            condition: asset?.condition || null,
+            note: asset?.note || null,
+            imageUrl: asset?.image_url || null,
+        } satisfies EmployeeAssignedAsset;
+    });
+}
+
+export async function getEmployeeOpenIssueCount(params: {
+    userId?: string | null;
+    email?: string | null;
+}): Promise<number> {
+    const userId = params.userId?.trim() || null;
+    const email = params.email?.trim() || null;
+
+    if (!userId && !email) {
+        return 0;
+    }
+
+    let query = supabase
+        .from('request_table')
+        .select('type, status, user_id, email');
+
+    if (userId && email) {
+        query = query.or(`user_id.eq.${userId},email.eq.${email}`);
+    } else if (userId) {
+        query = query.eq('user_id', userId);
+    } else if (email) {
+        query = query.eq('email', email);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    const rows = (data ?? []) as Array<{ type: string | null; status: string | null }>;
+
+    return rows.filter((row) => {
+        const type = String(row.type ?? '').toUpperCase();
+        const status = String(row.status ?? '').toUpperCase();
+        const isIssueType = type === 'ISSUE_REPORT' || type === 'ISSUE-REPORT' || type === 'ISSUEREPORT';
+        const isActive = status === 'PENDING' || status === 'OPEN' || status === 'IN_PROGRESS';
+        return isIssueType && isActive;
+    }).length;
 }

@@ -15,13 +15,8 @@ import {
 } from '@/components/ui/select';
 import { categories } from '@/components/Assets/add-asset-form/formTypes';
 
-// ── CHANGE 1: Remove this old import ──────────────────────────────
-// REMOVED: import { supabase } from '@/lib/supabase';
-// Reason: the component should NOT talk to Supabase directly
-
-// ── CHANGE 2: Add these two imports instead ───────────────────────
-import { useAuthStore } from '@/store/authStore';          // get current user from Zustand
-import { useSubmitAssetRequest } from '@/hooks/queries/useRequests'; // the mutation hook
+import { useAuthStore } from '@/store/authStore';         
+import { useSubmitAssetRequest } from '@/hooks/queries/useRequests'; 
 
 type SelectOption = NonNullable<Option>;
 

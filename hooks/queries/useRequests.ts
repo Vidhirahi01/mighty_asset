@@ -10,6 +10,8 @@ import {
     updateRequestStatus,
     RequestStatus,
     getRequestSummary,
+    getApprovedAssetsForUser,
+    getEmployeeOpenIssueCount,
 } from '@/services/request.service';
 
 export function useSubmitAssetRequest() {
@@ -70,5 +72,25 @@ export function useRequestSummary() {
     return useQuery({
         queryKey: ['requests', 'summary'],
         queryFn: getRequestSummary,
+    });
+}
+
+export function useEmployeeAssignedAssets(userId?: string, email?: string) {
+    const keyIdentity = userId || email || 'anonymous';
+
+    return useQuery({
+        queryKey: queryKeys.requests.employeeAssignedAssets(keyIdentity),
+        queryFn: () => getApprovedAssetsForUser({ userId, email }),
+        enabled: Boolean(userId || email),
+    });
+}
+
+export function useEmployeeOpenIssueCount(userId?: string, email?: string) {
+    const keyIdentity = userId || email || 'anonymous';
+
+    return useQuery({
+        queryKey: queryKeys.requests.employeeOpenIssues(keyIdentity),
+        queryFn: () => getEmployeeOpenIssueCount({ userId, email }),
+        enabled: Boolean(userId || email),
     });
 }
