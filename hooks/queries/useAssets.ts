@@ -13,8 +13,8 @@ const AssetStatus = (value: string | null | undefined) => {
 
 export function useAssets(category?: string) {
     return useQuery({
-        queryKey: [...queryKeys.assets.all, category],
-        queryFn: () => getAssets(category),
+        queryKey: ['assets', category], 
+    queryFn: () => getAssets(category),
     });
 }
 

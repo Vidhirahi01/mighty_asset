@@ -32,16 +32,14 @@ export type RequestSummary = {
     openIssues: number;
 };
 export const getAssets = async (category?: string) => {
-  let query = supabase.from('assets').select('*');
+  let query = supabase.from('asset_table').select('*');
 
   if (category && category !== 'All') {
-    query = query.eq('category', category);
+    query = query.eq('category', category.toLowerCase());
   }
-
-  const { data, error } = await query;
-
-  if (error) throw error;
-  return data;
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data ?? []) as Asset[];
 };
 
 export const getManagerRequests = async (): Promise<ManagerRequest[]> => {
@@ -76,17 +74,4 @@ export const getRequestSummary = async (): Promise<RequestSummary> => {
         pendingApprovals: (pendingData ?? []).length,
         openIssues: (issueData ?? []).length,
     };
-};
-
-export const getAssetsByCategory = async (category?: string) => {
-  let query = supabase.from('assets').select('*');
-
-  if (category && category !== 'All') {
-    query = query.eq('category', category);
-  }
-
-  const { data, error } = await query;
-
-  if (error) throw error;
-  return data;
 };

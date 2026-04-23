@@ -2,15 +2,27 @@ import React from 'react';
 import { View, ScrollView, Pressable } from 'react-native';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
-import { GitPullRequestArrow, CheckCheck, BadgeAlert, Bug, Check, X, Clock, Laptop, Monitor, Keyboard, Headphones, Package, AlertTriangle, TrendingDown } from 'lucide-react-native';
+import {
+    GitPullRequestArrow, CheckCheck, BadgeAlert, Bug,
+    Check, X, Clock, Laptop, Monitor, Keyboard,
+    Headphones, Package, AlertTriangle, TrendingDown,
+} from 'lucide-react-native';
 import { FlatList } from 'react-native-gesture-handler';
 import { useAssets } from '@/hooks/queries/useAssets';
 import { useManagerRequests, useRequestSummary } from '@/hooks/queries/useRequests';
 
-type StatItem = {
-    label: string;
-    count: number;
-};
+const FIXED_CATEGORIES = [
+    { label: 'All',      value: 'All',       icon: Package  },
+    { label: 'Laptops',  value: 'laptops',   icon: Laptop   },
+    { label: 'Monitor',  value: 'monitors',  icon: Monitor  },
+    { label: 'Keyboard', value: 'keyboards', icon: Keyboard },
+    { label: 'Cable',    value: 'cables',    icon: Package  },
+    { label: 'Mouse',    value: 'mouse',     icon: Package  },
+    { label: 'Printer',  value: 'printers',  icon: Package  },
+    { label: 'Tablet',   value: 'tablets',   icon: Package  },
+];
+
+type StatItem = { label: string; count: number };
 
 type ApprovalRequest = {
     id: string;
@@ -23,15 +35,17 @@ type ApprovalRequest = {
 
 type AssetCategory = {
     id: string;
+    value: string;
     name: string;
     icon: any;
     count: number;
 };
 
-type Asset = {
+type DashboardAsset = {
     id: string;
     name: string;
-    category: string;
+    category: string;  
+    categoryValue: string; 
     quantity: number;
     status: 'Available' | 'In Use' | 'Maintenance';
 };
@@ -43,31 +57,28 @@ type InventoryAlert = {
     currentQuantity: number;
     minimumThreshold: number;
     severity: 'Critical' | 'Warning';
-    lastOrdered?: string;
 };
-
 
 
 const toTitle = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
-const normalizeAssetStatus = (value: string | null | undefined): Asset['status'] => {
-    const status = (value ?? '').toLowerCase().replace(/[_\s-]/g, '');
-    if (status === 'available') return 'Available';
-    if (status === 'assigned' || status === 'inuse') return 'In Use';
+const normalizeAssetStatus = (value: string | null | undefined): DashboardAsset['status'] => {
+    const s = (value ?? '').toLowerCase().replace(/[_\s-]/g, '');
+    if (s === 'available') return 'Available';
+    if (s === 'assigned' || s === 'inuse') return 'In Use';
     return 'Maintenance';
 };
 
 const getPriorityFromReason = (reason: string | null): ApprovalRequest['priority'] => {
-    const line = (reason ?? '').split('\n').find((item) => item.startsWith('Priority: '));
-    const priority = line?.replace('Priority: ', '').trim().toLowerCase();
-    if (priority === 'high') return 'High';
-    if (priority === 'low') return 'Low';
+    const line = (reason ?? '').split('\n').find((l) => l.startsWith('Priority: '));
+    const p = line?.replace('Priority: ', '').trim().toLowerCase();
+    if (p === 'high') return 'High';
+    if (p === 'low') return 'Low';
     return 'Medium';
 };
 
 const getRelativeTime = (isoDate: string) => {
-    const created = new Date(isoDate).getTime();
-    const diffMinutes = Math.max(1, Math.floor((Date.now() - created) / (1000 * 60)));
+    const diffMinutes = Math.max(1, Math.floor((Date.now() - new Date(isoDate).getTime()) / 60000));
     if (diffMinutes < 60) return `${diffMinutes} min ago`;
     const diffHours = Math.floor(diffMinutes / 60);
     if (diffHours < 24) return `${diffHours} hr ago`;
@@ -75,33 +86,22 @@ const getRelativeTime = (isoDate: string) => {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
 };
 
-const getCategoryIcon = (value: string) => {
-    const category = value.toLowerCase();
-    if (category.includes('laptop')) return Laptop;
-    if (category.includes('monitor')) return Monitor;
-    if (category.includes('keyboard')) return Keyboard;
-    if (category.includes('headphone')) return Headphones;
-    return Package;
-};
 
 function MyCard({ item }: { item: StatItem }) {
     const getIcon = (label: string) => {
-        const iconProps = { size: 24, color: '#ffffff', strokeWidth: 2 };
+        const p = { size: 24, color: '#ffffff', strokeWidth: 2 };
         switch (label) {
-            case 'Pending Requests': return <GitPullRequestArrow {...iconProps} />;
-            case 'Currently Assigned': return <CheckCheck {...iconProps} />;
-            case 'Open Issues': return <Bug {...iconProps} />;
-            case 'Low Stock Item': return <BadgeAlert {...iconProps} />;
+            case 'Pending Requests':   return <GitPullRequestArrow {...p} />;
+            case 'Currently Assigned': return <CheckCheck {...p} />;
+            case 'Open Issues':        return <Bug {...p} />;
+            case 'Low Stock Item':     return <BadgeAlert {...p} />;
             default: return null;
         }
     };
-
     return (
         <Card className="mx-2 my-2 flex-1 bg-primary border border-primary shadow-lg">
             <CardContent className="px-5 py-6 items-center justify-center">
-                <View className="mb-2 p-2 rounded-full bg-white/20">
-                    {getIcon(item.label)}
-                </View>
+                <View className="mb-2 p-2 rounded-full bg-white/20">{getIcon(item.label)}</View>
                 <Text className="text-white text-xs text-center opacity-90">{item.label}</Text>
                 <Text className="mt-3 text-white text-4xl font-bold text-center">{item.count}</Text>
             </CardContent>
@@ -110,24 +110,16 @@ function MyCard({ item }: { item: StatItem }) {
 }
 
 function ApprovalRequestRow({ item, onPress }: { item: ApprovalRequest; onPress: () => void }) {
-    const getPriorityColor = (priority: string) => {
-        switch (priority) {
-            case 'High': return '#ef4444';
-            case 'Medium': return '#f59e0b';
-            case 'Low': return '#22c55e';
-            default: return '#6b7280';
-        }
+    const getPriorityColor = (p: string) => {
+        if (p === 'High') return '#ef4444';
+        if (p === 'Medium') return '#f59e0b';
+        return '#22c55e';
     };
-
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case 'Approved': return <Check size={16} color="#22c55e" strokeWidth={3} />;
-            case 'Rejected': return <X size={16} color="#ef4444" strokeWidth={3} />;
-            case 'Pending': return <Clock size={16} color="#f59e0b" strokeWidth={2} />;
-            default: return null;
-        }
+    const getStatusIcon = (s: string) => {
+        if (s === 'Approved') return <Check size={16} color="#22c55e" strokeWidth={3} />;
+        if (s === 'Rejected') return <X size={16} color="#ef4444" strokeWidth={3} />;
+        return <Clock size={16} color="#f59e0b" strokeWidth={2} />;
     };
-
     return (
         <Pressable onPress={onPress}>
             <View className="bg-primary-50 border border-border/50 rounded-lg p-3 mb-2 active:opacity-70">
@@ -138,9 +130,7 @@ function ApprovalRequestRow({ item, onPress }: { item: ApprovalRequest; onPress:
                     </View>
                     <View className="flex-row items-center gap-2">
                         <View style={{ backgroundColor: getPriorityColor(item.priority) + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                            <Text style={{ color: getPriorityColor(item.priority), fontSize: 11, fontWeight: '600' }}>
-                                {item.priority}
-                            </Text>
+                            <Text style={{ color: getPriorityColor(item.priority), fontSize: 11, fontWeight: '600' }}>{item.priority}</Text>
                         </View>
                         {getStatusIcon(item.status)}
                     </View>
@@ -152,33 +142,24 @@ function ApprovalRequestRow({ item, onPress }: { item: ApprovalRequest; onPress:
 }
 
 function CategoryPill({ category, isActive, onPress }: { category: AssetCategory; isActive?: boolean; onPress?: () => void }) {
-    
     const IconComponent = category.icon;
     return (
         <Pressable onPress={onPress}>
             <View className={`flex-row items-center gap-2 px-4 py-3 rounded-full mr-3 border ${isActive ? 'bg-primary border-primary' : 'bg-card border-border/50'}`}>
                 <IconComponent size={18} color={isActive ? '#ffffff' : '#6b7280'} strokeWidth={2} />
-                <Text className={`text-sm font-semibold ${isActive ? 'text-white' : 'text-foreground/70'}`}>
-                    {category.name}
-                </Text>
-                <Text className={`text-xs font-bold ${isActive ? 'text-white/80' : 'text-foreground/50'}`}>
-                    {category.count}
-                </Text>
+                <Text className={`text-sm font-semibold ${isActive ? 'text-white' : 'text-foreground/70'}`}>{category.name}</Text>
+                <Text className={`text-xs font-bold ${isActive ? 'text-white/80' : 'text-foreground/50'}`}>{category.count}</Text>
             </View>
         </Pressable>
     );
 }
 
-function AssetRow({ asset }: { asset: Asset }) {
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'Available': return '#22c55e';
-            case 'In Use': return '#3b82f6';
-            case 'Maintenance': return '#f59e0b';
-            default: return '#6b7280';
-        }
+function AssetRow({ asset }: { asset: DashboardAsset }) {
+    const getStatusColor = (s: string) => {
+        if (s === 'Available') return '#22c55e';
+        if (s === 'In Use') return '#3b82f6';
+        return '#f59e0b';
     };
-
     return (
         <View className="flex-row items-center justify-between p-3 border-b border-border/50">
             <View className="flex-1">
@@ -191,9 +172,7 @@ function AssetRow({ asset }: { asset: Asset }) {
                     <Text className="text-foreground/50 text-xs">qty</Text>
                 </View>
                 <View style={{ backgroundColor: getStatusColor(asset.status) + '20', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-                    <Text style={{ color: getStatusColor(asset.status), fontSize: 11, fontWeight: '600' }}>
-                        {asset.status}
-                    </Text>
+                    <Text style={{ color: getStatusColor(asset.status), fontSize: 11, fontWeight: '600' }}>{asset.status}</Text>
                 </View>
             </View>
         </View>
@@ -201,73 +180,73 @@ function AssetRow({ asset }: { asset: Asset }) {
 }
 
 function InventoryAlertRow({ alert }: { alert: InventoryAlert }) {
-    const getSeverityColor = (severity: string) => {
-        return severity === 'Critical' ? '#ef4444' : '#f59e0b';
-    };
-
-    const getAlertIcon = (severity: string) => {
-        return severity === 'Critical'
-            ? <AlertTriangle size={16} color="#ef4444" strokeWidth={2} />
-            : <TrendingDown size={16} color="#f59e0b" strokeWidth={2} />;
-    };
-
-    const shortagePercent = Math.round(
-        ((alert.minimumThreshold - alert.currentQuantity) / alert.minimumThreshold) * 100
-    );
-
+    const color = alert.severity === 'Critical' ? '#ef4444' : '#f59e0b';
+    const shortagePercent = Math.round(((alert.minimumThreshold - alert.currentQuantity) / alert.minimumThreshold) * 100);
     return (
-        <View className="p-4 rounded-lg mb-2" style={{ backgroundColor: getSeverityColor(alert.severity) + '10', borderLeftWidth: 4, borderLeftColor: getSeverityColor(alert.severity) }}>
+        <View className="p-4 rounded-lg mb-2" style={{ backgroundColor: color + '10', borderLeftWidth: 4, borderLeftColor: color }}>
             <View className="flex-row items-start justify-between mb-2">
                 <View className="flex-1 flex-row items-center gap-2">
-                    {getAlertIcon(alert.severity)}
+                    {alert.severity === 'Critical'
+                        ? <AlertTriangle size={16} color={color} strokeWidth={2} />
+                        : <TrendingDown size={16} color={color} strokeWidth={2} />}
                     <View className="flex-1">
                         <Text className="text-foreground font-semibold text-sm">{alert.assetName}</Text>
                         <Text className="text-foreground/60 text-xs mt-1">{alert.category}</Text>
                     </View>
                 </View>
-                <View style={{ backgroundColor: getSeverityColor(alert.severity) + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                    <Text style={{ color: getSeverityColor(alert.severity), fontSize: 11, fontWeight: '600' }}>
-                        {alert.severity}
-                    </Text>
+                <View style={{ backgroundColor: color + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                    <Text style={{ color, fontSize: 11, fontWeight: '600' }}>{alert.severity}</Text>
                 </View>
             </View>
             <View className="flex-row items-center justify-between">
                 <View className="flex-1">
                     <Text className="text-foreground/60 text-xs mb-1">Current: {alert.currentQuantity} | Minimum: {alert.minimumThreshold}</Text>
                     <View className="h-1.5 bg-foreground/10 rounded-full overflow-hidden">
-                        <View
-                            className="h-full rounded-full"
-                            style={{ backgroundColor: getSeverityColor(alert.severity), width: `${Math.min(100, (alert.currentQuantity / alert.minimumThreshold) * 100)}%` }}
-                        />
+                        <View className="h-full rounded-full" style={{ backgroundColor: color, width: `${Math.min(100, (alert.currentQuantity / alert.minimumThreshold) * 100)}%` }} />
                     </View>
                 </View>
                 <Text className="text-foreground/50 text-xs ml-3 min-w-12 text-right">{shortagePercent}% low</Text>
             </View>
-            {alert.lastOrdered && (
-                <Text className="text-foreground/50 text-xs mt-2">Last ordered: {alert.lastOrdered}</Text>
-            )}
         </View>
     );
 }
 
-export default function ManagerDashboard() {
-      const [selectedCategory, setSelectedCategory] = React.useState('All');
 
-  const { data: assets, isLoading } = useAssets(selectedCategory);
-    const [activeCategory, setActiveCategory] = React.useState<string | null>(null);
-    const { data: assetsData = [], error: assetsError } = useAssets(selectedCategory);
+export default function ManagerDashboard() {
+    const [activeCategory, setActiveCategory] = React.useState<string>('All');
+
+    const { data: rawAssets = [], error: assetsError } = useAssets();
     const { data: managerRequests = [], error: requestsError } = useManagerRequests();
     const { data: requestSummary } = useRequestSummary();
 
-    const assets: Asset[] = assetsData.map((row) => ({
+    const allAssets: DashboardAsset[] = rawAssets.map((row) => ({
         id: String(row.id),
         name: row.asset_name || 'Unnamed Asset',
-        category: toTitle(row.category || 'uncategorized'),
+        category: toTitle(row.category || 'uncategorized'),  
+        categoryValue: (row.category ?? '').toLowerCase().trim(), 
         quantity: Number(row.quantity ?? 0),
         status: normalizeAssetStatus(row.status),
     }));
 
-    const pendingApprovalsFromDb: ApprovalRequest[] = managerRequests
+    const countByCategory = rawAssets.reduce<Record<string, number>>((acc, row) => {
+        const key = (row.category ?? '').toLowerCase().trim();
+        acc[key] = (acc[key] ?? 0) + 1;
+        return acc;
+    }, {});
+
+    const assetCategories: AssetCategory[] = FIXED_CATEGORIES.map((cat) => ({
+        id: cat.value,
+        value: cat.value,
+        name: cat.label,
+        icon: cat.icon,
+        count: cat.value === 'All' ? rawAssets.length : (countByCategory[cat.value] ?? 0),
+    }));
+
+    const filteredAssets = activeCategory === 'All'
+        ? allAssets
+        : allAssets.filter((a) => a.categoryValue === activeCategory);
+
+    const pendingApprovals: ApprovalRequest[] = managerRequests
         .filter((row) => String(row.status).toUpperCase() === 'PENDING')
         .slice(0, 6)
         .map((row) => ({
@@ -276,29 +255,10 @@ export default function ManagerDashboard() {
             assetName: `${toTitle(row.category || 'asset')}${row.quantity ? ` x${row.quantity}` : ''}`,
             priority: getPriorityFromReason(row.reason),
             submittedAt: getRelativeTime(row.created_at),
-            status: 'Pending',
+            status: 'Pending' as const,
         }));
 
-    const pendingApprovals = pendingApprovalsFromDb;
-
- const { data: assets, isLoading } = useAssets(selectedCategory);
-
-const data = assets ?? [];
-    const categoryCountMap = safeAssets.reduce<Record<string, number>>((acc, item) => {
-        acc[item.category] = (acc[item.category] ?? 0) + 1;
-        return acc;
-    }, {});
-
-    const assetCategories: AssetCategory[] = Object.entries(categoryCountMap)
-        .map(([name, count], index) => ({
-            id: `${index + 1}`,
-            name,
-            icon: getCategoryIcon(name),
-            count,
-        }))
-        .sort((a, b) => b.count - a.count);
-
-    const inventoryAlertsFromDb: InventoryAlert[] = assetsData
+    const inventoryAlerts: InventoryAlert[] = rawAssets
         .filter((row) => {
             const qty = Number(row.quantity ?? 0);
             const min = Number(row.minimum_stock_level ?? 0);
@@ -313,32 +273,30 @@ const data = assets ?? [];
                 category: toTitle(row.category || 'uncategorized'),
                 currentQuantity: qty,
                 minimumThreshold: min,
-                severity: qty <= Math.floor(min / 2) ? 'Critical' : 'Warning',
-            } as InventoryAlert;
+                severity: (qty <= Math.floor(min / 2) ? 'Critical' : 'Warning') as InventoryAlert['severity'],
+            };
         })
         .sort((a, b) => a.currentQuantity - b.currentQuantity);
 
-    const inventoryAlerts: InventoryAlert[] = inventoryAlertsFromDb;
-
     const stats: StatItem[] = [
-        { label: 'Pending Requests', count: requestSummary?.pendingApprovals ?? pendingApprovals.length },
-        { label: 'Currently Assigned', count: safeAssets.filter((item) => item.status === 'In Use').length },
-        { label: 'Open Issues', count: requestSummary?.openIssues ?? 0 },
-        { label: 'Low Stock Item', count: inventoryAlerts.length },
+        { label: 'Pending Requests',   count: requestSummary?.pendingApprovals ?? pendingApprovals.length },
+        { label: 'Currently Assigned', count: allAssets.filter((a) => a.status === 'In Use').length },
+        { label: 'Open Issues',        count: requestSummary?.openIssues ?? 0 },
+        { label: 'Low Stock Item',     count: inventoryAlerts.length },
     ];
 
-    const filteredAssets = activeCategory
-        ? safeAssets.filter(asset => asset.category === activeCategory)
-        : safeAssets;
+    const activeCategoryLabel = assetCategories.find((c) => c.value === activeCategory)?.name ?? 'All Assets';
 
     return (
         <ScrollView className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
-                {assetsError || requestsError ? (
+
+                {(assetsError || requestsError) && (
                     <Text className="text-sm text-destructive">
-                        Live dashboard data could not be loaded from DB. Showing fallback values.
+                        Could not load live data from DB. Check your connection.
                     </Text>
-                ) : null}
+                )}
+
                 <FlatList
                     data={stats}
                     keyExtractor={(item) => item.label}
@@ -349,7 +307,6 @@ const data = assets ?? [];
                     scrollEnabled={false}
                 />
 
-                {/* Pending Approvals */}
                 <Card className="bg-card border border-border rounded-xl">
                     <CardHeader>
                         <CardTitle className="text-foreground text-lg">Pending Approvals</CardTitle>
@@ -360,13 +317,7 @@ const data = assets ?? [];
                             data={pendingApprovals}
                             keyExtractor={(item) => item.id}
                             renderItem={({ item }) => (
-                                <ApprovalRequestRow
-                                    item={item}
-                                    onPress={() => {
-                                        // Navigate to approval details page with full information
-                                        console.log('Navigate to approval details:', item.id);
-                                    }}
-                                />
+                                <ApprovalRequestRow item={item} onPress={() => console.log('Navigate to approval:', item.id)} />
                             )}
                             scrollEnabled={false}
                             ListEmptyComponent={<Text className="text-foreground/60 text-sm">No pending approvals.</Text>}
@@ -374,7 +325,6 @@ const data = assets ?? [];
                     </CardContent>
                 </Card>
 
-                {/* Asset Categories */}
                 <Card className="bg-card border border-border rounded-xl">
                     <CardHeader>
                         <CardTitle className="text-foreground text-lg">Asset Categories</CardTitle>
@@ -389,23 +339,23 @@ const data = assets ?? [];
                             renderItem={({ item }) => (
                                 <CategoryPill
                                     category={item}
-                                    isActive={activeCategory === item.name}
-                                    onPress={() => setActiveCategory(activeCategory === item.name ? null : item.name)}
+                                    isActive={activeCategory === item.value}
+                                    onPress={() =>
+                                        // Tap active pill → reset to All. Tap another → set it.
+                                        setActiveCategory(activeCategory === item.value ? 'All' : item.value)
+                                    }
                                 />
                             )}
-                            scrollEnabled={true}
                         />
                     </CardContent>
                 </Card>
 
-                {/* Asset Summary List */}
                 <Card className="bg-card border border-border rounded-xl">
                     <CardHeader>
-                        <CardTitle className="text-foreground text-lg">
-                            {activeCategory ? `${activeCategory}` : 'All Assets'}
-                        </CardTitle>
+                        <CardTitle className="text-foreground text-lg">{activeCategoryLabel}</CardTitle>
                         <CardDescription className="text-foreground/60">
-                            {filteredAssets.length} {activeCategory ? 'asset' : 'assets'} {activeCategory ? 'in this category' : 'total'}
+                            {filteredAssets.length} {filteredAssets.length === 1 ? 'asset' : 'assets'}
+                            {activeCategory !== 'All' ? ' in this category' : ' total'}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -414,21 +364,20 @@ const data = assets ?? [];
                             keyExtractor={(item) => item.id}
                             renderItem={({ item }) => <AssetRow asset={item} />}
                             scrollEnabled={false}
-                            ListEmptyComponent={<Text className="text-foreground/60 text-sm">No assets available.</Text>}
+                            ListEmptyComponent={<Text className="text-foreground/60 text-sm">No assets found.</Text>}
                         />
                     </CardContent>
                 </Card>
 
-                {/* Inventory Alerts */}
                 <Card className="bg-card border border-destructive/30 rounded-xl">
                     <CardHeader>
-                        <CardTitle className="text-foreground text-lg flex-row items-center ">
+                        <CardTitle className="text-foreground text-lg flex-row items-center">
                             <AlertTriangle size={20} color="#ef4444" strokeWidth={2} />
-                            <View className='w-2' />
-                            <Text >Inventory Alerts</Text>
+                            <View className="w-2" />
+                            <Text>Inventory Alerts</Text>
                         </CardTitle>
                         <CardDescription className="text-foreground/60">
-                            {inventoryAlerts.length} items below minimum stock threshold
+                            {inventoryAlerts.length} item{inventoryAlerts.length !== 1 ? 's' : ''} below minimum stock threshold
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -441,8 +390,8 @@ const data = assets ?? [];
                         />
                     </CardContent>
                 </Card>
+
             </View>
-            {/* Spacer for bottom tab bar */}
             <View style={{ height: 160 }} />
         </ScrollView>
     );
