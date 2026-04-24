@@ -3,10 +3,10 @@ import React from 'react';
 import { View, ScrollView, FlatList, Pressable, Alert, PressableStateCallbackType, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Text } from '@/components/ui/text';
-import { BadgeCheck, Sigma, UserRoundCheck, Wrench, AlertTriangle, ArrowLeft } from 'lucide-react-native';
+import { BadgeCheck, Sigma, UserRoundCheck, Wrench, AlertTriangle, ArrowLeft, ShoppingCart } from 'lucide-react-native';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAssets, useAssetStats } from '@/hooks/queries/useAssets';
-import { useManagerRequests, useUpdateRequestStatus } from '@/hooks/queries/useRequests';
+import { useManagerRequests, useUpdateWorkflowRequestStatus } from '@/hooks/queries/useRequests';
 
 // ─── STAT CARD ────────────────────────────────────────────────────────────────
 
@@ -176,7 +176,7 @@ export default function InventoryScreen() {
     const { data: assets = [], isLoading: assetsLoading } = useAssets();
     const { data: managerRequests = [], isLoading: requestsLoading } = useManagerRequests();
 
-    const updateRequestStatus = useUpdateRequestStatus();
+    const updateRequestStatus = useUpdateWorkflowRequestStatus();
 
     const categories: CategoryBreakdown[] = React.useMemo(() => {
         const map = new Map<string, CategoryBreakdown>();
@@ -290,6 +290,20 @@ export default function InventoryScreen() {
         ]);
     };
 
+    const handleSendForPurchase = (requestId: string) => {
+        Alert.alert('Send for Purchase', 'Queue this request for procurement and stock handling?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Send',
+                onPress: () =>
+                    updateRequestStatus.mutate({ requestId, status: 'PURCHASE_PENDING' }, {
+                        onSuccess: () => Alert.alert('Queued', 'Request sent to operations purchase queue.'),
+                        onError: (err: Error) => Alert.alert('Error', err.message || 'Failed to queue request.'),
+                    }),
+            },
+        ]);
+    };
+
     const getRequestTypeLabel = (type: StockRequest['requestType']) =>
         type === 'add-stock' ? 'Add Stock' : 'Set Reorder Alert';
 
@@ -322,7 +336,7 @@ export default function InventoryScreen() {
                         <Text className="text-xs text-foreground/60 mt-1">
                             {isOperationsMode
                                 ? 'You can request stock changes. Manager will approve requests.'
-                                : 'Editing is disabled for managers. Approve or reject operation requests only.'}
+                                : 'Managers can decide request outcomes: approve, reject, or send for purchase. Assignment stays with operations.'}
                         </Text>
                     </CardContent>
                 </Card>
@@ -423,6 +437,16 @@ export default function InventoryScreen() {
                                                 className="rounded-md bg-red-600 px-3 py-1.5"
                                             >
                                                 <Text className="text-xs font-semibold text-white">Reject</Text>
+                                            </Pressable>
+                                            <Pressable
+                                                onPress={() => handleSendForPurchase(request.id)}
+                                                disabled={updateRequestStatus.isPending}
+                                                className="rounded-md bg-sky-600 px-3 py-1.5"
+                                            >
+                                                <View className="flex-row items-center gap-1">
+                                                    <ShoppingCart size={12} color="#ffffff" strokeWidth={2} />
+                                                    <Text className="text-xs font-semibold text-white">Purchase</Text>
+                                                </View>
                                             </Pressable>
                                         </View>
                                     </View>

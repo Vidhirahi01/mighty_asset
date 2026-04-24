@@ -12,6 +12,10 @@ import {
     getRequestSummary,
     getApprovedAssetsForUser,
     getEmployeeOpenIssueCount,
+    WorkflowRequestStatus,
+    updateWorkflowRequestStatus,
+    getOperationsAssignmentRequests,
+    assignAssetToEmployee,
 } from '@/services/request.service';
 
 export function useSubmitAssetRequest() {
@@ -92,5 +96,44 @@ export function useEmployeeOpenIssueCount(userId?: string, email?: string) {
         queryKey: queryKeys.requests.employeeOpenIssues(keyIdentity),
         queryFn: () => getEmployeeOpenIssueCount({ userId, email }),
         enabled: Boolean(userId || email),
+    });
+}
+
+export function useUpdateWorkflowRequestStatus() {
+    const queryClient = useQueryClient();
+
+    return useMutation<void, Error, { requestId: string; status: WorkflowRequestStatus }>({
+        mutationFn: ({ requestId, status }) => updateWorkflowRequestStatus(requestId, status),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
+            queryClient.invalidateQueries({ queryKey: queryKeys.requests.operationsAssignmentQueue });
+        },
+        onError: (error) => {
+            Alert.alert('Error', error.message || 'Failed to update request status.');
+        },
+    });
+}
+
+export function useOperationsAssignmentRequests() {
+    return useQuery({
+        queryKey: queryKeys.requests.operationsAssignmentQueue,
+        queryFn: getOperationsAssignmentRequests,
+    });
+}
+
+export function useAssignAssetToEmployee() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: assignAssetToEmployee,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.requests.operationsAssignmentQueue });
+            queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
+            queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
+            queryClient.invalidateQueries({ queryKey: queryKeys.assets.stats });
+        },
+        onError: (error: Error) => {
+            Alert.alert('Error', error.message || 'Failed to complete assignment.');
+        },
     });
 }

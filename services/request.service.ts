@@ -19,6 +19,11 @@ export type SubmitAssetRequestResult = {
 
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
+export type WorkflowRequestStatus =
+    | RequestStatus
+    | 'PURCHASE_PENDING'
+    | 'ASSIGNED';
+
 export type ManagerRequestRow = {
     id: string;
     created_at: string;
@@ -27,8 +32,22 @@ export type ManagerRequestRow = {
     requester_name?: string | null;
     category: string | null;
     reason: string | null;
-    status: RequestStatus;
+    status: WorkflowRequestStatus;
     quantity: number | null;
+};
+
+export type OperationsAssignmentRequest = {
+    id: string;
+    created_at: string;
+    email: string | null;
+    user_id: string | null;
+    category: string | null;
+    reason: string | null;
+    quantity: number | null;
+    status: WorkflowRequestStatus;
+    requester_name: string | null;
+    department: string | null;
+    role: string | null;
 };
 
 export type RequestSummary = {
@@ -42,7 +61,7 @@ export type EmployeeAssignedAsset = {
     assetName: string;
     category: string;
     quantity: number;
-    status: RequestStatus;
+    status: WorkflowRequestStatus;
     approvedAt: string;
     requestedBy: string | null;
     reason: string | null;
@@ -186,6 +205,151 @@ export async function updateRequestStatus(requestId: string, status: RequestStat
         .eq('id', requestId);
 
     if (error) throw new Error(error.message);
+}
+
+export async function updateWorkflowRequestStatus(requestId: string, status: WorkflowRequestStatus) {
+    const { error } = await supabase
+        .from('request_table')
+        .update({ status })
+        .eq('id', requestId);
+
+    if (error) throw new Error(error.message);
+}
+
+export async function getOperationsAssignmentRequests(): Promise<OperationsAssignmentRequest[]> {
+    const { data, error } = await supabase
+        .from('request_table')
+        .select('id, created_at, email, user_id, category, reason, quantity, status, type')
+        .in('status', ['APPROVED', 'PURCHASE_PENDING'])
+        .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    const rows = (data ?? []) as Array<{
+        id: string;
+        created_at: string;
+        email: string | null;
+        user_id: string | null;
+        category: string | null;
+        reason: string | null;
+        quantity: number | null;
+        status: WorkflowRequestStatus;
+        type?: string | null;
+    }>;
+
+    const filteredRows = rows.filter((row) => {
+        const type = String(row.type ?? '').toUpperCase();
+        return type === 'ASSET_REQUEST' || type === 'ASSET-REQUEST' || type === 'ASSETREQUEST';
+    });
+
+    const userIds = Array.from(
+        new Set(
+            filteredRows
+                .map((row) => row.user_id)
+                .filter((id): id is string => Boolean(id))
+        )
+    );
+
+    const userMetaById = new Map<string, { name: string | null; department: string | null; role: string | null }>();
+
+    if (userIds.length > 0) {
+        const { data: users, error: usersError } = await supabase
+            .from('user_table')
+            .select('id, name, department, role')
+            .in('id', userIds);
+
+        if (!usersError && users) {
+            for (const user of users as Array<{ id: string; name?: string | null; department?: string | null; role?: string | null }>) {
+                userMetaById.set(String(user.id), {
+                    name: user.name ?? null,
+                    department: user.department ?? null,
+                    role: user.role ?? null,
+                });
+            }
+        }
+    }
+
+    return filteredRows.map((row) => {
+        const userMeta = row.user_id ? userMetaById.get(String(row.user_id)) : undefined;
+        return {
+            id: row.id,
+            created_at: row.created_at,
+            email: row.email,
+            user_id: row.user_id,
+            category: row.category,
+            reason: row.reason,
+            quantity: row.quantity,
+            status: row.status,
+            requester_name: userMeta?.name ?? null,
+            department: userMeta?.department ?? null,
+            role: userMeta?.role ?? null,
+        } satisfies OperationsAssignmentRequest;
+    });
+}
+
+export async function assignAssetToEmployee(input: {
+    requestId: string;
+    assetId: string;
+    assigneeUserId?: string | null;
+    assigneeEmail?: string | null;
+    assignDate: string;
+    assignmentType: string;
+    expectedReturn?: string | null;
+    notes?: string;
+    accessories?: string[];
+}) {
+    const assignee = input.assigneeUserId || input.assigneeEmail || null;
+    if (!assignee) {
+        throw new Error('Missing assignee identity for assignment.');
+    }
+
+    const assignmentMemo = [
+        `Assigned On: ${input.assignDate}`,
+        `Assignment Type: ${input.assignmentType}`,
+        `Expected Return: ${input.expectedReturn || 'N/A'}`,
+        `Accessories: ${(input.accessories ?? []).join(', ') || 'None'}`,
+        `Ops Notes: ${input.notes?.trim() || 'None'}`,
+    ].join('\n');
+
+    const { error: assetError } = await supabase
+        .from('asset_table')
+        .update({
+            status: 'ASSIGNED',
+            assigned_to: assignee,
+            note: assignmentMemo,
+        })
+        .eq('id', input.assetId);
+
+    if (assetError) {
+        throw new Error(assetError.message || 'Failed to assign asset.');
+    }
+
+    const { data: existingRequest, error: requestReadError } = await supabase
+        .from('request_table')
+        .select('reason')
+        .eq('id', input.requestId)
+        .single();
+
+    if (requestReadError) {
+        throw new Error(requestReadError.message || 'Failed to read request details.');
+    }
+
+    const mergedReason = [String(existingRequest?.reason ?? '').trim(), assignmentMemo]
+        .filter(Boolean)
+        .join('\n\n');
+
+    const { error: requestUpdateError } = await supabase
+        .from('request_table')
+        .update({
+            status: 'ASSIGNED',
+            asset_id: input.assetId,
+            reason: mergedReason,
+        })
+        .eq('id', input.requestId);
+
+    if (requestUpdateError) {
+        throw new Error(requestUpdateError.message || 'Failed to update request assignment.');
+    }
 }
 
 export async function getRequestSummary(): Promise<RequestSummary> {

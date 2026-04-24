@@ -4,75 +4,123 @@ import { Text } from '@/components/ui/text';
 import { AssignRequestList } from '@/components/Assets/assign/AssignRequestList';
 import { AssignAssetForm } from '@/components/Assets/assign/AssignAssetForm';
 import { AssetOption, AssetRequest, AssignPayload } from '@/components/Assets/assign/types';
+import { useAssets } from '@/hooks/queries/useAssets';
+import { useAssignAssetToEmployee, useOperationsAssignmentRequests } from '@/hooks/queries/useRequests';
 
-const REQUESTS: AssetRequest[] = [
-    {
-        id: 'REQ-1001',
-        requestDate: '2026-04-15',
-        priority: 'high',
-        requesterName: 'Arjun Mehta',
-        employeeId: 'EMP-119',
-        department: 'Engineering',
-        role: 'Frontend Developer',
-        reason: 'New project onboarding requires laptop and accessories.',
-        preferredCategory: 'laptops',
-    },
-    {
-        id: 'REQ-1002',
-        requestDate: '2026-04-14',
-        priority: 'medium',
-        requesterName: 'Nisha Patel',
-        employeeId: 'EMP-204',
-        department: 'Operations',
-        role: 'Analyst',
-        reason: 'Monitor replacement request due to hardware flicker.',
-        preferredCategory: 'monitors',
-    },
-    {
-        id: 'REQ-1003',
-        requestDate: '2026-04-13',
-        priority: 'low',
-        requesterName: 'Rahul Verma',
-        employeeId: 'EMP-231',
-        department: 'Support',
-        role: 'Technician',
-        reason: 'Temporary keyboard request for project room workstation.',
-        preferredCategory: 'keyboards',
-    },
-];
+const parsePriority = (reason: string | null): AssetRequest['priority'] => {
+    const line = (reason ?? '').split('\n').find((item) => item.startsWith('Priority: '));
+    const raw = line?.replace('Priority: ', '').trim().toLowerCase();
+    if (raw === 'high') return 'high';
+    if (raw === 'low') return 'low';
+    return 'medium';
+};
 
-const ASSETS: AssetOption[] = [
-    { id: 'AST-001', name: 'Dell Latitude', category: 'laptops', modelNo: '7440', serialNo: 'DL7440-A11', status: 'available' },
-    { id: 'AST-002', name: 'HP Elitebook', category: 'laptops', modelNo: '840 G9', serialNo: 'HP840-B21', status: 'available' },
-    { id: 'AST-003', name: 'LG 27 Monitor', category: 'monitors', modelNo: '27UP850', serialNo: 'LG27-D12', status: 'available' },
-    { id: 'AST-004', name: 'MX Keys', category: 'keyboards', modelNo: 'MX Keys', serialNo: 'MXK-E99', status: 'available' },
-    { id: 'AST-005', name: 'Docking Station', category: 'accessories', modelNo: 'USB-C Dock', serialNo: 'DK-110', status: 'assigned' },
-];
+const parseRequestReason = (reason: string | null) => {
+    const line = (reason ?? '').split('\n').find((item) => item.startsWith('Title: '));
+    return line ? line.replace('Title: ', '').trim() : (reason || 'No reason provided');
+};
+
+const normalizeAssetOptionStatus = (status: string | null | undefined): AssetOption['status'] => {
+    const normalized = String(status ?? '').toLowerCase().replace(/[_\s-]/g, '');
+    if (normalized === 'available') return 'available';
+    if (normalized === 'assigned' || normalized === 'inuse') return 'assigned';
+    return 'inRepair';
+};
 
 export default function AssignAssetScreen() {
-    const [selectedRequest, setSelectedRequest] = useState<AssetRequest | null>(REQUESTS[0] ?? null);
+    const { data: queueRows = [], isLoading } = useOperationsAssignmentRequests();
+    const { data: assetsData = [] } = useAssets();
+    const assignAssetMutation = useAssignAssetToEmployee();
+
+    const approvedRequests: AssetRequest[] = useMemo(() => {
+        return queueRows
+            .filter((row) => row.status === 'APPROVED')
+            .map((row) => ({
+                id: row.id,
+                requestDate: row.created_at,
+                priority: parsePriority(row.reason),
+                requesterName:
+                    row.requester_name ||
+                    (row.email?.split('@')[0] || 'Employee').replace(/\./g, ' '),
+                employeeId: row.user_id || row.email || 'N/A',
+                department: row.department || 'Not specified',
+                role: row.role || 'Employee',
+                reason: parseRequestReason(row.reason),
+                preferredCategory: row.category || 'uncategorized',
+            }));
+    }, [queueRows]);
+
+    const purchaseQueue = useMemo(
+        () => queueRows.filter((row) => row.status === 'PURCHASE_PENDING'),
+        [queueRows]
+    );
+
+    const [selectedRequest, setSelectedRequest] = useState<AssetRequest | null>(null);
+
+    React.useEffect(() => {
+        if (!selectedRequest && approvedRequests.length > 0) {
+            setSelectedRequest(approvedRequests[0]);
+            return;
+        }
+
+        if (selectedRequest && !approvedRequests.find((item) => item.id === selectedRequest.id)) {
+            setSelectedRequest(approvedRequests[0] ?? null);
+        }
+    }, [approvedRequests, selectedRequest]);
+
+    const assets: AssetOption[] = useMemo(
+        () => assetsData.map((asset) => ({
+            id: String(asset.id),
+            name: asset.asset_name || 'Unnamed asset',
+            category: asset.category || 'uncategorized',
+            modelNo: asset.model_no || 'N/A',
+            serialNo: (asset as { serial_no?: string | null }).serial_no || 'N/A',
+            status: normalizeAssetOptionStatus(asset.status),
+        })),
+        [assetsData]
+    );
 
     const filteredAssets = useMemo(() => {
-        if (!selectedRequest) return ASSETS;
+        if (!selectedRequest) return assets;
 
         const preferred = selectedRequest.preferredCategory.toLowerCase();
-        const preferredAssets = ASSETS.filter(
+        const preferredAssets = assets.filter(
             (asset) => asset.status === 'available' && asset.category.toLowerCase() === preferred
         );
 
-        const otherAssets = ASSETS.filter(
+        const otherAssets = assets.filter(
             (asset) => asset.status === 'available' && asset.category.toLowerCase() !== preferred
         );
 
         return [...preferredAssets, ...otherAssets];
-    }, [selectedRequest]);
+    }, [assets, selectedRequest]);
 
     const handleAssign = (payload: AssignPayload) => {
-        Alert.alert(
-            'Assignment Submitted',
-            `Request ${payload.requestId} submitted to manager for approval.`
+        const sourceRequest = queueRows.find((row) => row.id === payload.requestId);
+        if (!sourceRequest) {
+            Alert.alert('Error', 'Request no longer available in assignment queue.');
+            return;
+        }
+
+        assignAssetMutation.mutate(
+            {
+                requestId: payload.requestId,
+                assetId: payload.assetId,
+                assigneeUserId: sourceRequest.user_id,
+                assigneeEmail: sourceRequest.email,
+                assignDate: payload.assignDate,
+                assignmentType: payload.assignmentType,
+                expectedReturn: payload.expectedReturn,
+                notes: payload.notes,
+                accessories: payload.accessories,
+            },
+            {
+                onSuccess: () => {
+                    Alert.alert('Assigned', 'Asset has been assigned to employee successfully.');
+                    setSelectedRequest(null);
+                },
+            }
         );
-        console.log('Assign payload:', payload);
     };
 
     return (
@@ -80,15 +128,26 @@ export default function AssignAssetScreen() {
             <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
                 <View className="mb-4">
                     <Text className="text-2xl font-bold text-foreground">Assign Asset</Text>
-                    <Text className="text-sm text-muted-foreground">Handle incoming requests and submit assignment approval to manager.</Text>
+                    <Text className="text-sm text-muted-foreground">Operations assigns approved requests using actual inventory assets.</Text>
+                </View>
+
+                <View className="mb-4 rounded-2xl border border-sky-200 bg-sky-50 p-3">
+                    <Text className="text-xs font-bold uppercase tracking-wide text-sky-700">Purchase Queue</Text>
+                    <Text className="mt-1 text-xs text-sky-700/80">
+                        {purchaseQueue.length === 0
+                            ? 'No requests are currently marked for purchase.'
+                            : `${purchaseQueue.length} request${purchaseQueue.length > 1 ? 's' : ''} awaiting procurement.`}
+                    </Text>
                 </View>
 
                 <View className="gap-4">
                     <View className="rounded-2xl border border-blue-200 bg-blue-50 p-3">
-                        <Text className="text-xs font-bold uppercase tracking-wide text-blue-700">Incoming Requests Section</Text>
-                        <Text className="mb-3 mt-1 text-xs text-blue-700/80">Select one request to start assignment.</Text>
+                        <Text className="text-xs font-bold uppercase tracking-wide text-blue-700">Approved Requests</Text>
+                        <Text className="mb-3 mt-1 text-xs text-blue-700/80">
+                            {isLoading ? 'Loading requests...' : 'Select one manager-approved request for assignment.'}
+                        </Text>
                         <AssignRequestList
-                            requests={REQUESTS}
+                            requests={approvedRequests}
                             selectedRequestId={selectedRequest?.id ?? null}
                             onSelectRequest={setSelectedRequest}
                         />
@@ -96,7 +155,9 @@ export default function AssignAssetScreen() {
 
                     <View className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
                         <Text className="text-xs font-bold uppercase tracking-wide text-emerald-700">Assign Asset Section</Text>
-                        <Text className="mb-3 mt-1 text-xs text-emerald-700/80">Fill assignment details and send approval to manager.</Text>
+                        <Text className="mb-3 mt-1 text-xs text-emerald-700/80">
+                            Pick inventory asset, assign to employee, and update stock in one step.
+                        </Text>
                         <AssignAssetForm
                             selectedRequest={selectedRequest}
                             assets={filteredAssets}

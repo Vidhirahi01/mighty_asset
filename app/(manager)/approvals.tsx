@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, ScrollView, Pressable, Alert, TextInput } from 'react-native';
+import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, X, Clock, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react-native';
+import { Check, X, Clock, ChevronDown, ChevronUp, ShoppingCart } from 'lucide-react-native';
 import { FlatList } from 'react-native-gesture-handler';
-import { useManagerRequests, useUpdateRequestStatus } from '@/hooks/queries/useRequests';
+import { useManagerRequests, useUpdateWorkflowRequestStatus } from '@/hooks/queries/useRequests';
 
 
 type ApprovalRequest = {
@@ -17,12 +17,13 @@ type ApprovalRequest = {
     priority: 'High' | 'Medium' | 'Low';
     submittedAt: string;
     requiredBy?: string;
-    status: 'Pending' | 'Approved' | 'Rejected';
+    status: 'Pending' | 'Approved' | 'Rejected' | 'Purchase Pending';
 };
 
 const normalizeStatus = (status: string | null): ApprovalRequest['status'] => {
     if (status === 'APPROVED') return 'Approved';
     if (status === 'REJECTED') return 'Rejected';
+    if (status === 'PURCHASE_PENDING') return 'Purchase Pending';
     return 'Pending';
 };
 
@@ -61,10 +62,8 @@ const parseRequiredBy = (reason: string | null) => {
 
 export default function ApprovalsScreen() {
     const { data: managerRows = [], isLoading } = useManagerRequests();
-    const updateStatusMutation = useUpdateRequestStatus();
+    const updateStatusMutation = useUpdateWorkflowRequestStatus();
     const [expandedId, setExpandedId] = useState<string | null>(null);
-    const [holdingRequestId, setHoldingRequestId] = useState<string | null>(null);
-    const [holdMessage, setHoldMessage] = useState('');
 
     const approvals: ApprovalRequest[] = managerRows.map((row) => ({
         id: row.id,
@@ -109,30 +108,18 @@ export default function ApprovalsScreen() {
         ]);
     };
 
-    const handleHold = (id: string) => {
-        const request = approvals.find(a => a.id === id);
-        setHoldingRequestId(id);
-        setHoldMessage('');
-    };
-
-    const handleSendMessage = () => {
-        if (!holdMessage.trim()) {
-            Alert.alert('Error', 'Please enter a message');
-            return;
-        }
-
-        const request = approvals.find(a => a.id === holdingRequestId);
-        Alert.alert(
-            'Message Sent',
-            `Message sent to ${request?.userName}:\n\n"${holdMessage}"\n\nRequest is now on hold pending response.`
-        );
-        setHoldingRequestId(null);
-        setHoldMessage('');
-    };
-
-    const handleCancelHold = () => {
-        setHoldingRequestId(null);
-        setHoldMessage('');
+    const handleSendForPurchase = (id: string) => {
+        Alert.alert('Send For Purchase', 'Mark this request for procurement and stock handling?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Send',
+                onPress: async () => {
+                    await updateStatusMutation.mutateAsync({ requestId: id, status: 'PURCHASE_PENDING' });
+                    setExpandedId(null);
+                    Alert.alert('Queued', 'Request sent to operations purchase queue.');
+                },
+            },
+        ]);
     };
 
     const getPriorityColor = (priority: string) => {
@@ -148,6 +135,7 @@ export default function ApprovalsScreen() {
         switch (status) {
             case 'Approved': return '#22c55e';
             case 'Rejected': return '#ef4444';
+            case 'Purchase Pending': return '#0284c7';
             case 'Pending': return '#f59e0b';
             default: return '#6b7280';
         }
@@ -159,14 +147,14 @@ export default function ApprovalsScreen() {
         <ScrollView className="flex-1 bg-background " showsVerticalScrollIndicator={false}>
             <View className="p-6 gap-4">
                 {/* Header Cards */}
-                <View className="flex-row gap-2">
-                    <Card className="flex-1 bg-warning/10 border border-warning/30 rounded-lg">
+                <View className="flex-row flex-wrap justify-between gap-y-2">
+                    <Card className="w-[49%] bg-warning/10 border border-warning/30 rounded-lg">
                         <CardContent className="px-4 py-3 items-center justify-center">
                             <Text className="text-warning text-xs opacity-80">Pending</Text>
                             <Text className="text-warning text-2xl font-bold mt-1">{pendingCount}</Text>
                         </CardContent>
                     </Card>
-                    <Card className="flex-1 bg-success/10 border border-success/30 rounded-lg">
+                    <Card className="w-[49%] bg-success/10 border border-success/30 rounded-lg">
                         <CardContent className="px-4 py-3 items-center justify-center">
                             <Text className="text-success text-xs opacity-80">Approved</Text>
                             <Text className="text-success text-2xl font-bold mt-1">
@@ -174,11 +162,19 @@ export default function ApprovalsScreen() {
                             </Text>
                         </CardContent>
                     </Card>
-                    <Card className="flex-1 bg-destructive/10 border border-destructive/30 rounded-lg">
+                    <Card className="w-[49%] bg-destructive/10 border border-destructive/30 rounded-lg">
                         <CardContent className="px-4 py-3 items-center justify-center">
                             <Text className="text-destructive text-xs opacity-80">Rejected</Text>
                             <Text className="text-destructive text-2xl font-bold mt-1">
                                 {approvals.filter(a => a.status === 'Rejected').length}
+                            </Text>
+                        </CardContent>
+                    </Card>
+                    <Card className="w-[49%] bg-sky-500/10 border border-sky-500/30 rounded-lg">
+                        <CardContent className="px-4 py-3 items-center justify-center">
+                            <Text className="text-sky-700 text-xs opacity-80">Purchase</Text>
+                            <Text className="text-sky-700 text-2xl font-bold mt-1">
+                                {approvals.filter(a => a.status === 'Purchase Pending').length}
                             </Text>
                         </CardContent>
                     </Card>
@@ -256,77 +252,37 @@ export default function ApprovalsScreen() {
                                                     </View>
                                                 </View>
 
-                                                {/* Action Buttons */}
-                                                {holdingRequestId !== item.id ? (
-                                                    <View className="gap-3 mt-4">
-                                                        <View className="flex-row gap-2">
-                                                            <Pressable
-                                                                onPress={() => handleApprove(item.id)}
-                                                                className="flex-1 active:opacity-70"
-                                                            >
-                                                                <View className="bg-success/10 border border-success/30 rounded-lg p-3 items-center flex-row justify-center gap-2">
-                                                                    <Check size={18} color="#22c55e" strokeWidth={2} />
-                                                                    <Text className="text-success font-semibold text-sm">Approve</Text>
-                                                                </View>
-                                                            </Pressable>
-                                                            <Pressable
-                                                                onPress={() => handleReject(item.id)}
-                                                                className="flex-1 active:opacity-70"
-                                                            >
-                                                                <View className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 items-center flex-row justify-center gap-2">
-                                                                    <X size={18} color="#ef4444" strokeWidth={2} />
-                                                                    <Text className="text-destructive font-semibold text-sm">Reject</Text>
-                                                                </View>
-                                                            </Pressable>
-                                                        </View>
+                                                <View className="gap-3 mt-4">
+                                                    <View className="flex-row gap-2">
                                                         <Pressable
-                                                            onPress={() => handleHold(item.id)}
-                                                            className="active:opacity-70"
+                                                            onPress={() => handleApprove(item.id)}
+                                                            className="flex-1 active:opacity-70"
                                                         >
-                                                            <View className="bg-warning/10 border border-warning/30 rounded-lg p-3 items-center flex-row justify-center gap-2">
-                                                                <MessageSquare size={18} color="#f59e0b" strokeWidth={2} />
-                                                                <Text className="text-warning font-semibold text-sm">Hold & Ask Info</Text>
+                                                            <View className="bg-success/10 border border-success/30 rounded-lg p-3 items-center flex-row justify-center gap-2">
+                                                                <Check size={18} color="#22c55e" strokeWidth={2} />
+                                                                <Text className="text-success font-semibold text-sm">Approve</Text>
+                                                            </View>
+                                                        </Pressable>
+                                                        <Pressable
+                                                            onPress={() => handleReject(item.id)}
+                                                            className="flex-1 active:opacity-70"
+                                                        >
+                                                            <View className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 items-center flex-row justify-center gap-2">
+                                                                <X size={18} color="#ef4444" strokeWidth={2} />
+                                                                <Text className="text-destructive font-semibold text-sm">Reject</Text>
                                                             </View>
                                                         </Pressable>
                                                     </View>
-                                                ) : (
-                                                    <View className="bg-warning/5 border border-warning/20 rounded-lg p-4 mt-4 gap-3">
-                                                        <View>
-                                                            <Text className="text-foreground font-semibold text-sm mb-2">Message to {item.userName}</Text>
-                                                            <TextInput
-                                                                placeholder="Ask for more information..."
-                                                                placeholderTextColor="#9ca3af"
-                                                                value={holdMessage}
-                                                                onChangeText={setHoldMessage}
-                                                                multiline
-                                                                numberOfLines={4}
-                                                                className="bg-card border border-border rounded-lg p-3 text-foreground text-sm"
-                                                                style={{
-                                                                    color: '#1f2937',
-                                                                    textAlignVertical: 'top',
-                                                                }}
-                                                            />
+                                                    <Pressable
+                                                        onPress={() => handleSendForPurchase(item.id)}
+                                                        className="active:opacity-70"
+                                                    >
+                                                        <View className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 items-center flex-row justify-center gap-2">
+                                                            <ShoppingCart size={18} color="#0284c7" strokeWidth={2} />
+                                                            <Text className="text-sky-700 font-semibold text-sm">Send for Purchase</Text>
                                                         </View>
-                                                        <View className="flex-row gap-2">
-                                                            <Pressable
-                                                                onPress={handleSendMessage}
-                                                                className="flex-1 active:opacity-70"
-                                                            >
-                                                                <View className="bg-warning/20 border border-warning/50 rounded-lg p-3 items-center">
-                                                                    <Text className="text-warning font-semibold text-sm">Send Message</Text>
-                                                                </View>
-                                                            </Pressable>
-                                                            <Pressable
-                                                                onPress={handleCancelHold}
-                                                                className="flex-1 active:opacity-70"
-                                                            >
-                                                                <View className="bg-foreground/5 border border-foreground/10 rounded-lg p-3 items-center">
-                                                                    <Text className="text-foreground font-semibold text-sm">Cancel</Text>
-                                                                </View>
-                                                            </Pressable>
-                                                        </View>
-                                                    </View>
-                                                )}
+                                                    </Pressable>
+                                                </View>
                                             </View>
                                         </View>
                                     )}
