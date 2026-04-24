@@ -36,11 +36,9 @@ const QUANTITY_REQUIRED_CATEGORIES = new Set(['monitors', 'tablets', 'cables']);
 
 export default function RequestAssetScreen() {
 
-    // ── CHANGE 3: Add these two lines at the top of the component ─
-    const user = useAuthStore((state) => state.user);    // replaces supabase.auth.getUser()
-    const submitRequest = useSubmitAssetRequest();        // replaces all the Supabase logic in handleSubmit
+    const user = useAuthStore((state) => state.user);    
+    const submitRequest = useSubmitAssetRequest();        
 
-    // ── These useState lines stay exactly the same ─────────────────
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [categoryQuantities, setCategoryQuantities] = useState<Record<string, string>>({});
     const [priority, setPriority] = useState<SelectOption | undefined>(undefined);
@@ -48,11 +46,7 @@ export default function RequestAssetScreen() {
     const [reason, setReason] = useState('');
     const [additionalNotes, setAdditionalNotes] = useState('');
 
-    // ── CHANGE 4: Remove this line ────────────────────────────────
-    // REMOVED: const [isSubmitting, setIsSubmitting] = useState(false);
-    // Reason: submitRequest.isPending replaces this completely
-
-    // ── These helper functions stay exactly the same ───────────────
+    
     const getCategoryLabel = (value: string) => {
         const match = categories.find((item) => item.value === value);
         return match?.label ?? value;
@@ -90,11 +84,8 @@ export default function RequestAssetScreen() {
         setAdditionalNotes('');
     };
 
-    // ── CHANGE 5: Replace the entire handleSubmit function ─────────
-    // BEFORE: handleSubmit was ~60 lines with 4 direct Supabase calls
-    // AFTER: it just validates, then calls submitRequest.mutate()
+ 
     const handleSubmit = () => {
-        // Validation stays the same
         if (selectedCategories.length === 0 || !priority?.value || !expectedDuration?.value || !reason.trim()) {
             Alert.alert('Missing Fields', 'Please select categories, priority, reason, and expected duration.');
             return;
@@ -111,13 +102,11 @@ export default function RequestAssetScreen() {
             return;
         }
 
-        // Guard: make sure user is logged in
         if (!user) {
             Alert.alert('Error', 'You must be logged in to submit a request.');
             return;
         }
 
-        // Build quantities object
         const quantities: Record<string, number> = {};
         selectedCategories.forEach((cat) => {
             quantities[cat] = QUANTITY_REQUIRED_CATEGORIES.has(cat)
@@ -125,7 +114,6 @@ export default function RequestAssetScreen() {
                 : 1;
         });
 
-        // Call the mutation — all Supabase logic is inside the hook
         submitRequest.mutate(
             {
                 email: user.email,
@@ -139,17 +127,12 @@ export default function RequestAssetScreen() {
             },
             {
                 onSuccess: () => resetForm(),
-                // onError is already handled inside useSubmitAssetRequest
             }
         );
     };
 
-    // ── CHANGE 6: Replace isSubmitting with submitRequest.isPending ─
-    const isSubmitting = submitRequest.isPending; // was: const [isSubmitting, setIsSubmitting] = useState(false)
+    const isSubmitting = submitRequest.isPending; 
 
-    // ── The entire JSX return stays exactly the same ───────────────
-    // Only difference: isSubmitting still works the same way in JSX,
-    // because we assigned submitRequest.isPending to a variable with the same name
     return (
         <FlatList
             data={[]}

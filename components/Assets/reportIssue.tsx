@@ -373,7 +373,6 @@ export default function ReportIssueScreen() {
                                                 <Text className="text-xs text-foreground/70 mt-1">
                                                     {asset.category || 'Uncategorized'}
                                                     {asset.model_no ? ` | ${asset.model_no}` : ''}
-                                                    {asset.serial_no ? ` | ${asset.serial_no}` : ''}
                                                 </Text>
                                             </Pressable>
                                         );

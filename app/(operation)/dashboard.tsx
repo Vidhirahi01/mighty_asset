@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, Pressable, FlatList, TouchableOpacity } from 'react-native';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +19,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RightDrawer } from '@/components/RightDrawer';
 import { AddAssetForm } from '@/components/Assets/AddAssetForm';
+import { useAssets } from '@/hooks/queries/useAssets';
 
 type StatItem = {
     label: string;
@@ -41,14 +41,6 @@ type PendingAction = {
 
 type StockActionMode = 'add-stock' | 'set-reorder-alert';
 
-const STATS: StatItem[] = [
-    { label: 'Total Assets', count: 257 },
-    { label: 'Available', count: 142 },
-    { label: 'pending issues', count: 4 },
-    { label: 'Return Queue', count: 3 },
-    { label: 'Active issue', count: 257 },
-    { label: 'Today Assigns', count: 3 },
-];
 
 const ACTIONS: actions[] = [
 
@@ -204,8 +196,31 @@ export default function OperationDashboard() {
     const [stockActionMode, setStockActionMode] = useState<StockActionMode | undefined>(undefined);
     const [openedFromInventory, setOpenedFromInventory] = useState(false);
     const router = useRouter();
-    const { openAddAsset, stockAction } = useLocalSearchParams<{ openAddAsset?: string; stockAction?: StockActionMode }>();
 
+    const { data: rawAssets = [], error: assetsError } = useAssets();
+    const { openAddAsset, stockAction } = useLocalSearchParams<{ openAddAsset?: string; stockAction?: StockActionMode }>();
+    const stats = React.useMemo(() => {
+        const total = rawAssets.length;
+
+        const available = rawAssets.filter(
+            (a) => a.status === "AVAILABLE"
+        ).length;
+
+        const assigned = rawAssets.filter(
+            (a) => a.status === "ASSIGNED"
+        ).length;
+
+        const returnQueue = rawAssets.filter(
+            (a) => a.status === "RETURN_PENDING"
+        ).length;
+
+        return [
+            { label: "Total Assets", count: total },
+            { label: "Available", count: available },
+            { label: "Assigned", count: assigned },
+            { label: "Return Queue", count: returnQueue },
+        ];
+    }, [rawAssets]);
     useEffect(() => {
         if (openAddAsset === '1') {
             setStockActionMode(stockAction);
@@ -240,7 +255,6 @@ export default function OperationDashboard() {
         <View className="flex-1 bg-background">
             <ScrollView showsVerticalScrollIndicator={false}>
                 <View className="p-6 gap-4">
-                    {/* Header */}
                     <View className="gap-1 mb-2">
                         <Text className="text-foreground text-2xl font-bold">Operations Dashboard</Text>
                         <Text className="text-foreground/60 text-sm">Monitor and manage daily operations</Text>
@@ -248,7 +262,7 @@ export default function OperationDashboard() {
 
                     <View className="gap-2">
                         <View className="flex-row flex-wrap">
-                            {STATS.map((item) => (
+                            {stats.map((item) => (
                                 <View key={item.label} style={{ width: '50%' }}>
                                     <MyCard item={item} />
                                 </View>

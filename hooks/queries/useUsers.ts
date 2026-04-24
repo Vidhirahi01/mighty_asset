@@ -1,9 +1,8 @@
-// hooks/queries/useUsers.ts
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { fetchAllUsers, updateUser, createUser, deleteUser, CreateUserData } from '@/services/user.service';
 
-// ── User type ─────────────────────────────────────────────────────
 export interface User {
     id: string;
     name: string;
@@ -14,7 +13,6 @@ export interface User {
     created_at: string;
 }
 
-// ── Fetch all users ───────────────────────────────────────────────
 export function useUsers() {
     return useQuery<User[]>({
         queryKey: queryKeys.users.all,
@@ -24,12 +22,9 @@ export function useUsers() {
         },
     });
 }
-
-// ── Update a user ─────────────────────────────────────────────────
 export function useUpdateUser() {
     const queryClient = useQueryClient();
     return useMutation({
-        // FIX: use lowercase 'string', NOT 'String' (capital S is a wrapper object, not a type)
         mutationFn: ({ userId, data }: { userId: string; data: Partial<CreateUserData> }) =>
             updateUser(userId, data),
 
@@ -39,7 +34,6 @@ export function useUpdateUser() {
     });
 }
 
-// ── Create a user ─────────────────────────────────────────────────
 export function useCreateUser() {
     const queryClient = useQueryClient();
     return useMutation({
@@ -50,7 +44,6 @@ export function useCreateUser() {
     });
 }
 
-// ── Delete a user ─────────────────────────────────────────────────
 export function useDeleteUser() {
     const queryClient = useQueryClient();
     return useMutation({
