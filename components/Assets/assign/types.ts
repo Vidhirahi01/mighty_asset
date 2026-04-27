@@ -7,6 +7,7 @@ export type AccessoryOption = 'charger' | 'plug' | 'cable' | 'bag' | 'mouse' | '
 export type AssetRequest = {
     id: string;
     requestDate: string;
+    quantity: number;
     priority: RequestPriority;
     requesterName: string;
     employeeId: string;

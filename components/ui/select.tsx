@@ -85,14 +85,14 @@ function SelectContent({
             <NativeOnlyAnimatedView className="z-50" entering={FadeIn} exiting={FadeOut}>
               <SelectPrimitive.Content
                 className={cn(
-                  'bg-muted/95 relative z-50 min-w-[8rem] w-11/12 max-w-[420px] rounded-2xl shadow-lg shadow-black/10',
+                  'bg-muted/95 relative z-50 min-w-[8rem] w-11/12 max-w-[420px] rounded-2xl shadow-lg shadow-black/10 max-h-96',
                   Platform.select({
                     web: cn(
                       'animate-in fade-in-0 zoom-in-95 origin-(--radix-select-content-transform-origin) max-h-52 overflow-y-auto overflow-x-hidden',
                       props.side === 'bottom' && 'slide-in-from-top-2',
                       props.side === 'top' && 'slide-in-from-bottom-2'
                     ),
-                    native: 'p-1',
+                    native: 'p-1 overflow-hidden',
                   }),
                   position === 'popper' &&
                   Platform.select({
@@ -108,7 +108,7 @@ function SelectContent({
                 <SelectScrollUpButton />
                 <SelectPrimitive.Viewport
                   className={cn(
-                    'p-1',
+                    'p-1 max-h-80',
                     position === 'popper' &&
                     cn(
                       'w-full',

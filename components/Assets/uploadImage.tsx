@@ -14,7 +14,7 @@ type ImagePickerExampleProps = {
 export default function ImagePickerExample({ onUploaded }: ImagePickerExampleProps) {
     const [image, setImage] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
-
+  
     const pickImage = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -109,7 +109,6 @@ const uploadImage = async (imageUri: string) => {
             encoding: 'base64',
         });
 
-        // Upload as ArrayBuffer to avoid Blob limitations in React Native runtime.
         const fileData = base64ToArrayBuffer(base64Data);
 
         const { data, error } = await supabase.storage

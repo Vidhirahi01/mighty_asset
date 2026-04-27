@@ -15,6 +15,7 @@ export const queryKeys = {
     requests: {
         list: (userId: string) => ['requests', 'list', userId] as const,
         employeeAssignedAssets: (identity: string) => ['requests', 'employee-assigned-assets', identity] as const,
+        employeeAssetRequests: (identity: string) => ['requests', 'employee-asset-requests', identity] as const,
         employeeOpenIssues: (identity: string) => ['requests', 'employee-open-issues', identity] as const,
         operationsAssignmentQueue: ['requests', 'operations-assignment-queue'] as const,
         pendingByCategories: (userId: string, categories: string[]) =>

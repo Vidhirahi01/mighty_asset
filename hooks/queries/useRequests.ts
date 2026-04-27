@@ -11,6 +11,7 @@ import {
     RequestStatus,
     getRequestSummary,
     getApprovedAssetsForUser,
+    getEmployeeAssetRequests,
     getEmployeeOpenIssueCount,
     WorkflowRequestStatus,
     updateWorkflowRequestStatus,
@@ -79,6 +80,16 @@ export function useRequestSummary() {
     });
 }
 
+export function useEmployeeAssetRequests(userId?: string, email?: string) {
+    const keyIdentity = userId || email || 'anonymous';
+
+    return useQuery({
+        queryKey: queryKeys.requests.employeeAssetRequests(keyIdentity),
+        queryFn: () => getEmployeeAssetRequests({ userId, email }),
+        enabled: Boolean(userId || email),
+    });
+}
+
 export function useEmployeeAssignedAssets(userId?: string, email?: string) {
     const keyIdentity = userId || email || 'anonymous';
 
@@ -107,6 +118,7 @@ export function useUpdateWorkflowRequestStatus() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
             queryClient.invalidateQueries({ queryKey: queryKeys.requests.operationsAssignmentQueue });
+            queryClient.invalidateQueries({ queryKey: ['requests', 'employee-asset-requests'] });
         },
         onError: (error) => {
             Alert.alert('Error', error.message || 'Failed to update request status.');
@@ -131,6 +143,8 @@ export function useAssignAssetToEmployee() {
             queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
             queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
             queryClient.invalidateQueries({ queryKey: queryKeys.assets.stats });
+            queryClient.invalidateQueries({ queryKey: ['requests', 'employee-asset-requests'] });
+            queryClient.invalidateQueries({ queryKey: ['requests', 'employee-assigned-assets'] });
         },
         onError: (error: Error) => {
             Alert.alert('Error', error.message || 'Failed to complete assignment.');

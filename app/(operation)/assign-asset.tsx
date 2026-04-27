@@ -7,6 +7,18 @@ import { AssetOption, AssetRequest, AssignPayload } from '@/components/Assets/as
 import { useAssets } from '@/hooks/queries/useAssets';
 import { useAssignAssetToEmployee, useOperationsAssignmentRequests } from '@/hooks/queries/useRequests';
 
+const normalizeCategory = (value: string | null | undefined) => {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (normalized.startsWith('laptop')) return 'laptop';
+    if (normalized.startsWith('monitor')) return 'monitor';
+    if (normalized.startsWith('keyboard')) return 'keyboard';
+    if (normalized.startsWith('tablet')) return 'tablet';
+    if (normalized.startsWith('printer')) return 'printer';
+    if (normalized.startsWith('cable')) return 'cable';
+    if (normalized === 'mice') return 'mouse';
+    return normalized;
+};
+
 const parsePriority = (reason: string | null): AssetRequest['priority'] => {
     const line = (reason ?? '').split('\n').find((item) => item.startsWith('Priority: '));
     const raw = line?.replace('Priority: ', '').trim().toLowerCase();
@@ -34,10 +46,11 @@ export default function AssignAssetScreen() {
 
     const approvedRequests: AssetRequest[] = useMemo(() => {
         return queueRows
-            .filter((row) => row.status === 'APPROVED')
+            .filter((row) => row.status === 'APPROVED' && Boolean(row.user_id || row.email))
             .map((row) => ({
                 id: row.id,
                 requestDate: row.created_at,
+                quantity: Math.max(1, Number(row.quantity ?? 1)),
                 priority: parsePriority(row.reason),
                 requesterName:
                     row.requester_name ||
@@ -83,22 +96,41 @@ export default function AssignAssetScreen() {
     const filteredAssets = useMemo(() => {
         if (!selectedRequest) return assets;
 
-        const preferred = selectedRequest.preferredCategory.toLowerCase();
-        const preferredAssets = assets.filter(
-            (asset) => asset.status === 'available' && asset.category.toLowerCase() === preferred
-        );
+        const preferred = normalizeCategory(selectedRequest.preferredCategory);
 
-        const otherAssets = assets.filter(
-            (asset) => asset.status === 'available' && asset.category.toLowerCase() !== preferred
-        );
-
-        return [...preferredAssets, ...otherAssets];
+        return assets
+            .filter((asset) => normalizeCategory(asset.category) === preferred)
+            .sort((a, b) => {
+                const aAvailable = a.status === 'available';
+                const bAvailable = b.status === 'available';
+                if (aAvailable !== bAvailable) return aAvailable ? -1 : 1;
+                return a.name.localeCompare(b.name);
+            });
     }, [assets, selectedRequest]);
 
     const handleAssign = (payload: AssignPayload) => {
+        if (assignAssetMutation.isPending) {
+            return;
+        }
+
         const sourceRequest = queueRows.find((row) => row.id === payload.requestId);
         if (!sourceRequest) {
             Alert.alert('Error', 'Request no longer available in assignment queue.');
+            return;
+        }
+
+        if (!sourceRequest.user_id && !sourceRequest.email) {
+            Alert.alert('Error', 'Request is missing assignee identity (user id/email).');
+            return;
+        }
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.assignDate.trim())) {
+            Alert.alert('Invalid Date', 'Assign date must be in YYYY-MM-DD format.');
+            return;
+        }
+
+        if (payload.expectedReturn && !/^\d{4}-\d{2}-\d{2}$/.test(payload.expectedReturn.trim())) {
+            Alert.alert('Invalid Date', 'Expected return must be in YYYY-MM-DD format.');
             return;
         }
 
@@ -163,6 +195,7 @@ export default function AssignAssetScreen() {
                             assets={filteredAssets}
                             onAssign={handleAssign}
                             onCancel={() => setSelectedRequest(null)}
+                            isSubmitting={assignAssetMutation.isPending}
                         />
                     </View>
                 </View>

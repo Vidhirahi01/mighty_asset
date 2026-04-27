@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Text } from '@/components/ui/text';
 import { CalendarClock, ChevronDown, ChevronUp, CircleCheck, Package } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
-import { useEmployeeAssignedAssets } from '@/hooks/queries/useRequests';
+import { useEmployeeAssetRequests, useEmployeeAssignedAssets } from '@/hooks/queries/useRequests';
 
 type ParsedReason = {
     title: string;
@@ -42,11 +42,28 @@ const parseReason = (value: string | null): ParsedReason => {
     };
 };
 
+const normalizeStatusLabel = (value: string) => {
+    const normalized = value.toUpperCase();
+    if (normalized === 'PURCHASE_PENDING') return 'Purchase Pending';
+    if (normalized === 'APPROVED') return 'Approved';
+    if (normalized === 'REJECTED') return 'Rejected';
+    return 'Pending';
+};
+
+const statusChipClass = (value: string) => {
+    const normalized = value.toUpperCase();
+    if (normalized === 'APPROVED') return 'bg-green-100';
+    if (normalized === 'REJECTED') return 'bg-red-100';
+    if (normalized === 'PURCHASE_PENDING') return 'bg-sky-100';
+    return 'bg-amber-100';
+};
+
 export default function MyAssets() {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const user = useAuthStore((state) => state.user);
 
     const { data: assets = [], isLoading } = useEmployeeAssignedAssets(user?.id, user?.email);
+    const { data: requestHistory = [], isLoading: isLoadingRequests } = useEmployeeAssetRequests(user?.id, user?.email);
 
     const normalizedAssets = useMemo(
         () => assets.map((asset) => ({
@@ -64,7 +81,7 @@ export default function MyAssets() {
                 <View>
                     <Text className="text-foreground text-2xl font-bold">My Assets</Text>
                     <Text className="text-foreground/60 text-sm mt-1">
-                        Approved asset requests assigned to your account
+                        Final assigned assets and full request tracking
                     </Text>
                 </View>
 
@@ -94,7 +111,7 @@ export default function MyAssets() {
                         ) : normalizedAssets.length === 0 ? (
                             <View className="py-6 items-center">
                                 <Text className="text-foreground/50 text-sm text-center">
-                                    No approved assets yet. Once your request is accepted, it will appear here.
+                                    No assigned assets yet. Once operations assigns an asset, it will appear here.
                                 </Text>
                             </View>
                         ) : (
@@ -118,7 +135,7 @@ export default function MyAssets() {
                                                 </View>
                                                 <View className="flex-row items-center gap-2">
                                                     <View className="rounded-full bg-success/15 px-2 py-1">
-                                                        <Text className="text-success text-[10px] font-semibold">APPROVED</Text>
+                                                        <Text className="text-success text-[10px] font-semibold">ASSIGNED</Text>
                                                     </View>
                                                     {isExpanded ? (
                                                         <ChevronUp size={16} color="#6b7280" strokeWidth={2} />
@@ -135,7 +152,7 @@ export default function MyAssets() {
                                                     <View className="flex-row items-center gap-2">
                                                         <CircleCheck size={15} color="#16a34a" strokeWidth={2.5} />
                                                         <Text className="text-success text-xs font-semibold">
-                                                            Request Approved and visible in your assigned list
+                                                            Asset assignment completed by operations
                                                         </Text>
                                                     </View>
 
@@ -182,6 +199,55 @@ export default function MyAssets() {
                                     </View>
                                 );
                             })
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-card border border-border rounded-xl">
+                    <CardHeader>
+                        <CardTitle className="text-foreground text-lg">My Requests</CardTitle>
+                        <CardDescription className="text-foreground/60">
+                            All asset requests with current status and assigned asset details
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="gap-3">
+                        {isLoadingRequests ? (
+                            <View className="py-6 items-center">
+                                <ActivityIndicator color="#1b72fc" />
+                                <Text className="text-foreground/60 text-sm mt-3">Loading request history...</Text>
+                            </View>
+                        ) : requestHistory.length === 0 ? (
+                            <View className="py-6 items-center">
+                                <Text className="text-foreground/50 text-sm text-center">
+                                    No asset requests found for your account.
+                                </Text>
+                            </View>
+                        ) : (
+                            requestHistory.map((request) => (
+                                <View key={request.requestId} className="rounded-lg border border-border p-3 bg-background">
+                                    <View className="flex-row items-start justify-between gap-3">
+                                        <View className="flex-1">
+                                            <Text className="text-foreground text-sm font-semibold">
+                                                {request.assignedAssetName || toTitle(request.category || 'asset request')}
+                                            </Text>
+                                            <Text className="text-foreground/60 text-xs mt-1">
+                                                {toTitle(request.category || 'uncategorized')} • Qty: {request.quantity}
+                                            </Text>
+                                            <Text className="text-foreground/60 text-xs mt-1">
+                                                {prettyDate(request.createdAt)}
+                                            </Text>
+                                        </View>
+                                        <View className={`rounded-full px-2 py-1 ${statusChipClass(request.status)}`}>
+                                            <Text className="text-[10px] font-semibold text-foreground">
+                                                {normalizeStatusLabel(request.status)}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <Text className="text-foreground/70 text-xs mt-2">
+                                        Assigned Asset: {request.assignedAssetName || 'Not assigned yet'}
+                                    </Text>
+                                </View>
+                            ))
                         )}
                     </CardContent>
                 </Card>

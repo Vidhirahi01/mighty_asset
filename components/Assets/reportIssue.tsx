@@ -13,6 +13,8 @@ import {
     type Option,
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
+import { useEmployeeAssignedAssets } from '@/hooks/queries/useRequests';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -34,36 +36,6 @@ type IssueAttachment = {
     url: string;
     type: 'file' | 'photo' | 'video';
 };
-
-const STATIC_ASSET_FALLBACK: AssignedAsset[] = [
-    {
-        id: 'demo-laptop-1',
-        asset_name: 'Dell Latitude 5420',
-        category: 'laptops',
-        brand: 'Dell',
-        model_no: '5420',
-        serial_no: 'DL-5420-001',
-        status: 'ASSIGNED',
-    },
-    {
-        id: 'demo-monitor-1',
-        asset_name: 'LG 24MP400',
-        category: 'monitors',
-        brand: 'LG',
-        model_no: '24MP400',
-        serial_no: 'LG-24-778',
-        status: 'ASSIGNED',
-    },
-    {
-        id: 'demo-keyboard-1',
-        asset_name: 'Logitech K380',
-        category: 'keyboards',
-        brand: 'Logitech',
-        model_no: 'K380',
-        serial_no: 'KB-380-019',
-        status: 'ASSIGNED',
-    },
-];
 
 const ISSUE_TYPES: SelectOption[] = [
     { label: 'Hardware', value: 'hardware' },
@@ -100,8 +72,8 @@ const getFileExtension = (uriOrName: string, fallback: string) => {
 };
 
 export default function ReportIssueScreen() {
-    const [assignedAssets, setAssignedAssets] = useState<AssignedAsset[]>([]);
-    const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+    const user = useAuthStore((state) => state.user);
+    const { data: assignedRows = [], isLoading: isLoadingAssets } = useEmployeeAssignedAssets(user?.id, user?.email);
     const [selectedAssetId, setSelectedAssetId] = useState<string | number | null>(null);
 
     const [issueType, setIssueType] = useState<SelectOption | undefined>(undefined);
@@ -114,57 +86,34 @@ export default function ReportIssueScreen() {
     const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const assignedAssets = useMemo(
+        () => assignedRows.map((item) => ({
+            id: item.assetId || item.requestId,
+            asset_name: item.assetName,
+            category: item.category,
+            brand: item.brand,
+            model_no: item.modelNo,
+            serial_no: null,
+            status: 'ASSIGNED',
+        })),
+        [assignedRows]
+    );
+
     const selectedAsset = useMemo(
         () => assignedAssets.find((asset) => String(asset.id) === String(selectedAssetId)),
         [assignedAssets, selectedAssetId]
     );
 
-    const displayAssets = assignedAssets.length > 0 ? assignedAssets : STATIC_ASSET_FALLBACK;
-
-    const selectedDisplayAsset = useMemo(
-        () => displayAssets.find((asset) => String(asset.id) === String(selectedAssetId)),
-        [displayAssets, selectedAssetId]
-    );
-
     useEffect(() => {
-        const loadAssignedAssets = async () => {
-            setIsLoadingAssets(true);
-            try {
-                const { data: authData, error: authError } = await supabase.auth.getUser();
-                if (authError) {
-                    Alert.alert('Error', authError.message || 'Unable to load current user.');
-                    return;
-                }
+        if (!selectedAssetId && assignedAssets.length > 0) {
+            setSelectedAssetId(assignedAssets[0].id);
+            return;
+        }
 
-                const userId = authData.user?.id;
-                const email = authData.user?.email;
-
-                if (!userId && !email) {
-                    setAssignedAssets([]);
-                    return;
-                }
-
-                const candidates = [userId, email].filter(Boolean) as string[];
-                const { data, error } = await supabase
-                    .from('asset_table')
-                    .select('id, asset_name, category, brand, model_no, serial_no, status')
-                    .in('assigned_to', candidates)
-                    .order('asset_name', { ascending: true });
-
-                if (error) {
-                    Alert.alert('Error', error.message || 'Failed to load assigned assets.');
-                    return;
-                }
-
-                const rows = (data ?? []) as AssignedAsset[];
-                setAssignedAssets(rows);
-            } finally {
-                setIsLoadingAssets(false);
-            }
-        };
-
-        loadAssignedAssets();
-    }, []);
+        if (selectedAssetId && !assignedAssets.some((asset) => String(asset.id) === String(selectedAssetId))) {
+            setSelectedAssetId(assignedAssets[0]?.id ?? null);
+        }
+    }, [assignedAssets, selectedAssetId]);
 
     const uploadAttachment = async (uri: string, type: IssueAttachment['type'], explicitName?: string) => {
         const { data: authData, error: userError } = await supabase.auth.getUser();
@@ -285,7 +234,7 @@ export default function ReportIssueScreen() {
     };
 
     const handleSubmit = async () => {
-        if (!selectedDisplayAsset) {
+        if (!selectedAsset) {
             Alert.alert('Select Asset', 'Please select an assigned asset first.');
             return;
         }
@@ -304,7 +253,7 @@ export default function ReportIssueScreen() {
             const issueSummary = [
                 `Issue Type: ${issueType.label}`,
                 `Start Date: ${startedAt.trim()}`,
-                `Asset ID: ${selectedDisplayAsset.id}`,
+                `Asset ID: ${selectedAsset.id}`,
                 `Description: ${description.trim()}`,
                 attachments.length ? `Attachments: ${attachments.map((item) => item.url).join(', ')}` : 'Attachments: none',
             ].join('\n');
@@ -314,8 +263,8 @@ export default function ReportIssueScreen() {
                     request_type: 'issue-report',
                     requester_id: requesterId,
                     requested_by: requesterEmail,
-                    category: selectedDisplayAsset.category,
-                    asset_type: selectedDisplayAsset.asset_name,
+                    category: selectedAsset.category,
+                    asset_type: selectedAsset.asset_name,
                     priority: priority.value,
                     reason: issueTitle.trim(),
                     expected_duration: null,
@@ -361,7 +310,7 @@ export default function ReportIssueScreen() {
                                 <Text className="text-foreground/70">Loading assigned assets...</Text>
                             ) : (
                                 <View className="gap-2">
-                                    {displayAssets.map((asset) => {
+                                    {assignedAssets.map((asset) => {
                                         const isSelected = String(selectedAssetId) === String(asset.id);
                                         return (
                                             <Pressable
@@ -381,13 +330,13 @@ export default function ReportIssueScreen() {
                             )}
                             {!isLoadingAssets && assignedAssets.length === 0 ? (
                                 <Text className="text-xs text-foreground/60 mt-2">
-                                    Showing demo assets for now until account assignment data is available.
+                                    No assigned assets found. Assets appear here only after operations completes assignment.
                                 </Text>
                             ) : null}
                         </CardContent>
                     </Card>
 
-                    {selectedDisplayAsset ? (
+                    {selectedAsset ? (
                         <Card className="bg-card mb-4">
                             <CardHeader>
                                 <CardTitle className="text-foreground">Issue Details</CardTitle>

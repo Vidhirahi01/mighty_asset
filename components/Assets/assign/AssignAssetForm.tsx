@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import {
@@ -21,6 +21,7 @@ type AssignAssetFormProps = {
     assets: AssetOption[];
     onAssign: (payload: AssignPayload) => void;
     onCancel: () => void;
+    isSubmitting?: boolean;
 };
 
 const assignmentOptions: Array<{ label: string; value: AssignmentType }> = [
@@ -31,7 +32,9 @@ const assignmentOptions: Array<{ label: string; value: AssignmentType }> = [
 
 const accessoryOptions: AccessoryOption[] = ['charger', 'plug', 'cable', 'bag', 'mouse', 'keyboard'];
 
-export function AssignAssetForm({ selectedRequest, assets, onAssign, onCancel }: AssignAssetFormProps) {
+const isIsoDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
+
+export function AssignAssetForm({ selectedRequest, assets, onAssign, onCancel, isSubmitting = false }: AssignAssetFormProps) {
     const [selectedAsset, setSelectedAsset] = useState<SelectOption | undefined>(undefined);
     const [assignmentType, setAssignmentType] = useState<SelectOption | undefined>(undefined);
     const [assignDate, setAssignDate] = useState(new Date().toISOString().slice(0, 10));
@@ -39,20 +42,32 @@ export function AssignAssetForm({ selectedRequest, assets, onAssign, onCancel }:
     const [assignNotes, setAssignNotes] = useState('');
     const [accessories, setAccessories] = useState<AccessoryOption[]>([]);
 
-    const availableAssets = useMemo(
-        () => assets.filter((asset) => asset.status === 'available'),
-        [assets]
-    );
-
-    const assetOptions: SelectOption[] = availableAssets.map((asset) => ({
-        label: `${asset.name} (${asset.modelNo})`,
+    const assetOptions: SelectOption[] = assets.map((asset) => ({
+        label: `${asset.name} (${asset.modelNo}) [${asset.status === 'inRepair' ? 'in repair' : asset.status}]`,
         value: asset.id,
     }));
 
     const selectedAssetDetail = useMemo(
-        () => availableAssets.find((asset) => asset.id === selectedAsset?.value),
-        [availableAssets, selectedAsset]
+        () => assets.find((asset) => asset.id === selectedAsset?.value),
+        [assets, selectedAsset]
     );
+
+    const selectedAssetIsAvailable = selectedAssetDetail?.status === 'available';
+
+    React.useEffect(() => {
+        setSelectedAsset(undefined);
+        setAssignmentType(undefined);
+        setExpectedReturn('');
+        setAssignNotes('');
+        setAccessories([]);
+        setAssignDate(new Date().toISOString().slice(0, 10));
+    }, [selectedRequest?.id]);
+
+    React.useEffect(() => {
+        if (selectedAsset?.value && !assets.some((asset) => asset.id === selectedAsset.value)) {
+            setSelectedAsset(undefined);
+        }
+    }, [assets, selectedAsset]);
 
     const toggleAccessory = (option: AccessoryOption) => {
         setAccessories((prev) =>
@@ -65,16 +80,43 @@ export function AssignAssetForm({ selectedRequest, assets, onAssign, onCancel }:
             return;
         }
 
+        if (!selectedAssetIsAvailable) {
+            return;
+        }
+
+        if (!isIsoDate(assignDate)) {
+            return;
+        }
+
+        if (expectedReturn.trim() && !isIsoDate(expectedReturn)) {
+            return;
+        }
+
+        const assignmentValue = assignmentType.value as AssignmentType;
+        if ((assignmentValue === 'temporary' || assignmentValue === 'project') && !expectedReturn.trim()) {
+            return;
+        }
+
         onAssign({
             requestId: selectedRequest.id,
             assetId: selectedAsset.value,
             assignDate,
-            assignmentType: assignmentType.value as AssignmentType,
+            assignmentType: assignmentValue,
             expectedReturn: expectedReturn.trim() ? expectedReturn.trim() : null,
             notes: assignNotes.trim(),
             accessories,
         });
     };
+
+    const assignDisabled =
+        isSubmitting ||
+        !selectedRequest ||
+        !selectedAsset?.value ||
+        !selectedAssetIsAvailable ||
+        !assignmentType?.value ||
+        !isIsoDate(assignDate) ||
+        (expectedReturn.trim() ? !isIsoDate(expectedReturn) : false) ||
+        ((assignmentType?.value === 'temporary' || assignmentType?.value === 'project') && !expectedReturn.trim());
 
     return (
         <Card className="border border-border bg-card">
@@ -94,21 +136,37 @@ export function AssignAssetForm({ selectedRequest, assets, onAssign, onCancel }:
 
                         <View>
                             <Text className="mb-1 font-semibold text-foreground">Select Asset</Text>
-                            <Select value={selectedAsset} onValueChange={setSelectedAsset}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Choose an available asset" />
-                                </SelectTrigger>
-                                <SelectContent insets={{ top: 0, bottom: 0, left: 0, right: 0 }} className="w-full">
-                                    <SelectGroup>
-                                        <SelectLabel>Available Assets</SelectLabel>
-                                        {assetOptions.map((asset) => (
-                                            <SelectItem key={asset.value} label={asset.label} value={asset.value}>
-                                                {asset.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
+                            <View className="rounded-xl border border-border bg-background p-2">
+                                <ScrollView className="max-h-56" nestedScrollEnabled={true}>
+                                    <View className="gap-2">
+                                        {assets.map((asset) => {
+                                            const isAvailable = asset.status === 'available';
+                                            const isSelected = selectedAsset?.value === asset.id;
+
+                                            return (
+                                                <Pressable
+                                                    key={asset.id}
+                                                    onPress={() => {
+                                                        if (!isAvailable) return;
+                                                        setSelectedAsset({ label: asset.name, value: asset.id });
+                                                    }}
+                                                    className={`rounded-lg border px-3 py-2 ${isSelected ? 'border-primary bg-primary/10' : 'border-border bg-card'} ${!isAvailable ? 'opacity-50' : ''}`}
+                                                >
+                                                    <Text className="text-sm font-semibold text-foreground">
+                                                        {asset.name}
+                                                    </Text>
+                                                    <Text className="text-xs text-muted-foreground">
+                                                        {asset.modelNo} • {asset.category} • {asset.status}
+                                                    </Text>
+                                                </Pressable>
+                                            );
+                                        })}
+                                    </View>
+                                </ScrollView>
+                            </View>
+                            {assetOptions.length === 0 ? (
+                                <Text className="mt-2 text-xs text-muted-foreground">No available assets found for assignment right now.</Text>
+                            ) : null}
                         </View>
 
                         {selectedAssetDetail && (
@@ -118,6 +176,10 @@ export function AssignAssetForm({ selectedRequest, assets, onAssign, onCancel }:
                                 <Text className="text-xs text-muted-foreground">Category: {selectedAssetDetail.category}</Text>
                                 <Text className="text-xs text-muted-foreground">Model: {selectedAssetDetail.modelNo}</Text>
                                 <Text className="text-xs text-muted-foreground">Serial: {selectedAssetDetail.serialNo}</Text>
+                                <Text className="text-xs text-muted-foreground">Status: {selectedAssetDetail.status}</Text>
+                                {!selectedAssetIsAvailable ? (
+                                    <Text className="mt-1 text-xs text-amber-700">Only available assets can be assigned.</Text>
+                                ) : null}
                             </View>
                         )}
 
@@ -129,6 +191,9 @@ export function AssignAssetForm({ selectedRequest, assets, onAssign, onCancel }:
                                 placeholder="YYYY-MM-DD"
                                 className="rounded-xl border border-border px-3 py-2 text-foreground"
                             />
+                            {!isIsoDate(assignDate) ? (
+                                <Text className="mt-1 text-xs text-red-600">Enter date in YYYY-MM-DD format.</Text>
+                            ) : null}
                         </View>
 
                         <View>
@@ -158,6 +223,12 @@ export function AssignAssetForm({ selectedRequest, assets, onAssign, onCancel }:
                                 placeholder="YYYY-MM-DD"
                                 className="rounded-xl border border-border px-3 py-2 text-foreground"
                             />
+                            {(assignmentType?.value === 'temporary' || assignmentType?.value === 'project') && !expectedReturn.trim() ? (
+                                <Text className="mt-1 text-xs text-amber-700">Expected return date is required for temporary or project assignments.</Text>
+                            ) : null}
+                            {expectedReturn.trim() && !isIsoDate(expectedReturn) ? (
+                                <Text className="mt-1 text-xs text-red-600">Enter date in YYYY-MM-DD format.</Text>
+                            ) : null}
                         </View>
 
                         <View>
@@ -197,9 +268,9 @@ export function AssignAssetForm({ selectedRequest, assets, onAssign, onCancel }:
                             </Pressable>
                             <Pressable
                                 onPress={submit}
-                                disabled={!selectedAsset?.value || !assignmentType?.value}
-                                className={`flex-1 items-center rounded-xl py-3 ${!selectedAsset?.value || !assignmentType?.value ? 'bg-primary/40' : 'bg-primary'}`}>
-                                <Text className="font-semibold text-white">Assign</Text>
+                                disabled={assignDisabled}
+                                className={`flex-1 items-center rounded-xl py-3 ${assignDisabled ? 'bg-primary/40' : 'bg-primary'}`}>
+                                <Text className="font-semibold text-white">{isSubmitting ? 'Assigning...' : 'Assign'}</Text>
                             </Pressable>
                         </View>
                     </>

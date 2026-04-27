@@ -45,6 +45,11 @@ export function AssignRequestList({ requests, selectedRequestId, onSelectRequest
                 <CardTitle className="text-foreground">Incoming Requests</CardTitle>
             </CardHeader>
             <CardContent className="gap-2">
+                {sortedRequests.length === 0 ? (
+                    <View className="rounded-xl border border-dashed border-border p-4">
+                        <Text className="text-center text-sm text-muted-foreground">No approved requests ready for assignment.</Text>
+                    </View>
+                ) : null}
                 {sortedRequests.map((request) => {
                     const selected = request.id === selectedRequestId;
                     return (
@@ -60,6 +65,7 @@ export function AssignRequestList({ requests, selectedRequestId, onSelectRequest
                             </View>
                             <Text className="text-xs text-muted-foreground">Emp ID: {request.employeeId} | {request.department}</Text>
                             <Text className="text-xs text-muted-foreground">Role: {request.role}</Text>
+                            <Text className="text-xs text-muted-foreground">Qty Requested: {request.quantity}</Text>
                             <Text className="mt-1 text-xs text-foreground/80">{request.reason}</Text>
                             <Text className="mt-1 text-xs text-foreground/70">Preferred: {request.preferredCategory}</Text>
                         </Pressable>

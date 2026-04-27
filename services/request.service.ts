@@ -21,8 +21,7 @@ export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export type WorkflowRequestStatus =
     | RequestStatus
-    | 'PURCHASE_PENDING'
-    | 'ASSIGNED';
+    | 'PURCHASE_PENDING';
 
 export type ManagerRequestRow = {
     id: string;
@@ -70,6 +69,17 @@ export type EmployeeAssignedAsset = {
     condition: string | null;
     note: string | null;
     imageUrl: string | null;
+};
+
+export type EmployeeAssetRequest = {
+    requestId: string;
+    createdAt: string;
+    status: WorkflowRequestStatus;
+    category: string | null;
+    quantity: number;
+    reason: string | null;
+    assignedAssetId: string | null;
+    assignedAssetName: string | null;
 };
 
 export async function getUserByEmail(email: string) {
@@ -219,8 +229,9 @@ export async function updateWorkflowRequestStatus(requestId: string, status: Wor
 export async function getOperationsAssignmentRequests(): Promise<OperationsAssignmentRequest[]> {
     const { data, error } = await supabase
         .from('request_table')
-        .select('id, created_at, email, user_id, category, reason, quantity, status, type')
+        .select('id, created_at, email, user_id, category, reason, quantity, status, type, asset_id')
         .in('status', ['APPROVED', 'PURCHASE_PENDING'])
+        .is('asset_id', null)
         .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -235,6 +246,7 @@ export async function getOperationsAssignmentRequests(): Promise<OperationsAssig
         quantity: number | null;
         status: WorkflowRequestStatus;
         type?: string | null;
+        asset_id?: string | null;
     }>;
 
     const filteredRows = rows.filter((row) => {
@@ -341,7 +353,7 @@ export async function assignAssetToEmployee(input: {
     const { error: requestUpdateError } = await supabase
         .from('request_table')
         .update({
-            status: 'ASSIGNED',
+            status: 'APPROVED',
             asset_id: input.assetId,
             reason: mergedReason,
         })
@@ -394,7 +406,8 @@ export async function getApprovedAssetsForUser(params: {
     let query = supabase
         .from('request_table')
         .select('id, created_at, email, user_id, category, quantity, reason, status, type, asset_id')
-        .eq('status', 'APPROVED');
+        .eq('status', 'APPROVED')
+        .not('asset_id', 'is', null);
 
     if (userId && email) {
         query = query.or(`user_id.eq.${userId},email.eq.${email}`);
@@ -495,6 +508,93 @@ export async function getApprovedAssetsForUser(params: {
             imageUrl: asset?.image_url || null,
         } satisfies EmployeeAssignedAsset;
     });
+}
+
+export async function getEmployeeAssetRequests(params: {
+    userId?: string | null;
+    email?: string | null;
+}): Promise<EmployeeAssetRequest[]> {
+    const userId = params.userId?.trim() || null;
+    const email = params.email?.trim() || null;
+
+    if (!userId && !email) {
+        return [];
+    }
+
+    let query = supabase
+        .from('request_table')
+        .select('id, created_at, status, category, quantity, reason, type, asset_id, user_id, email');
+
+    if (userId && email) {
+        query = query.or(`user_id.eq.${userId},email.eq.${email}`);
+    } else if (userId) {
+        query = query.eq('user_id', userId);
+    } else if (email) {
+        query = query.eq('email', email);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    const requestRows = ((data ?? []) as Array<{
+        id: string;
+        created_at: string;
+        status: WorkflowRequestStatus;
+        category: string | null;
+        quantity: number | null;
+        reason: string | null;
+        type: string | null;
+        asset_id: string | null;
+    }>).filter((row) => {
+        const type = String(row.type ?? '').toUpperCase();
+        return type === 'ASSET_REQUEST' || type === 'ASSET-REQUEST' || type === 'ASSETREQUEST';
+    });
+
+    if (requestRows.length === 0) {
+        return [];
+    }
+
+    const assetIds = Array.from(
+        new Set(
+            requestRows
+                .map((row) => row.asset_id)
+                .filter((id): id is string => Boolean(id))
+        )
+    );
+
+    let assetNameById = new Map<string, string>();
+
+    if (assetIds.length > 0) {
+        const { data: assets, error: assetsError } = await supabase
+            .from('asset_table')
+            .select('id, asset_name')
+            .in('id', assetIds);
+
+        if (assetsError) {
+            throw new Error(assetsError.message);
+        }
+
+        assetNameById = new Map(
+            ((assets ?? []) as Array<{ id: string; asset_name: string | null }>).map((asset) => [
+                asset.id,
+                asset.asset_name?.trim() || 'Assigned Asset',
+            ])
+        );
+    }
+
+    return requestRows.map((row) => ({
+        requestId: row.id,
+        createdAt: row.created_at,
+        status: row.status,
+        category: row.category,
+        quantity: Number(row.quantity ?? 1),
+        reason: row.reason,
+        assignedAssetId: row.asset_id,
+        assignedAssetName: row.asset_id ? (assetNameById.get(row.asset_id) || 'Assigned Asset') : null,
+    }));
 }
 
 export async function getEmployeeOpenIssueCount(params: {
