@@ -1,5 +1,5 @@
-// services/request.service.ts
 import { supabase } from "@/lib/supabase";
+import { getOpenIssueCountByReporter } from '@/services/issue.service';
 
 export type CreateAssetRequestInput = {
     email: string;
@@ -602,36 +602,10 @@ export async function getEmployeeOpenIssueCount(params: {
     email?: string | null;
 }): Promise<number> {
     const userId = params.userId?.trim() || null;
-    const email = params.email?.trim() || null;
 
-    if (!userId && !email) {
+    if (!userId) {
         return 0;
     }
 
-    let query = supabase
-        .from('request_table')
-        .select('type, status, user_id, email');
-
-    if (userId && email) {
-        query = query.or(`user_id.eq.${userId},email.eq.${email}`);
-    } else if (userId) {
-        query = query.eq('user_id', userId);
-    } else if (email) {
-        query = query.eq('email', email);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    const rows = (data ?? []) as Array<{ type: string | null; status: string | null }>;
-
-    return rows.filter((row) => {
-        const type = String(row.type ?? '').toUpperCase();
-        const status = String(row.status ?? '').toUpperCase();
-        const isIssueType = type === 'ISSUE_REPORT' || type === 'ISSUE-REPORT' || type === 'ISSUEREPORT';
-        const isActive = status === 'PENDING' || status === 'OPEN' || status === 'IN_PROGRESS';
-        return isIssueType && isActive;
-    }).length;
+    return getOpenIssueCountByReporter(userId);
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, TextInput, View } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import {
@@ -13,8 +14,10 @@ import {
     type Option,
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
+import { queryKeys } from '@/lib/queryKeys';
 import { useAuthStore } from '@/store/authStore';
 import { useEmployeeAssignedAssets } from '@/hooks/queries/useRequests';
+import { createIssue } from '@/services/issue.service';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -72,6 +75,7 @@ const getFileExtension = (uriOrName: string, fallback: string) => {
 };
 
 export default function ReportIssueScreen() {
+    const queryClient = useQueryClient();
     const user = useAuthStore((state) => state.user);
     const { data: assignedRows = [], isLoading: isLoadingAssets } = useEmployeeAssignedAssets(user?.id, user?.email);
     const [selectedAssetId, setSelectedAssetId] = useState<string | number | null>(null);
@@ -87,15 +91,17 @@ export default function ReportIssueScreen() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const assignedAssets = useMemo(
-        () => assignedRows.map((item) => ({
-            id: item.assetId || item.requestId,
-            asset_name: item.assetName,
-            category: item.category,
-            brand: item.brand,
-            model_no: item.modelNo,
-            serial_no: null,
-            status: 'ASSIGNED',
-        })),
+        () => assignedRows
+            .filter((item) => Boolean(item.assetId))
+            .map((item) => ({
+                id: item.assetId as string,
+                asset_name: item.assetName,
+                category: item.category,
+                brand: item.brand,
+                model_no: item.modelNo,
+                serial_no: null,
+                status: 'ASSIGNED',
+            })),
         [assignedRows]
     );
 
@@ -248,38 +254,31 @@ export default function ReportIssueScreen() {
         try {
             const { data: authData } = await supabase.auth.getUser();
             const requesterId = authData.user?.id ?? null;
-            const requesterEmail = authData.user?.email ?? null;
-
-            const issueSummary = [
-                `Issue Type: ${issueType.label}`,
-                `Start Date: ${startedAt.trim()}`,
-                `Asset ID: ${selectedAsset.id}`,
-                `Description: ${description.trim()}`,
-                attachments.length ? `Attachments: ${attachments.map((item) => item.url).join(', ')}` : 'Attachments: none',
-            ].join('\n');
-
-            const { error } = await supabase.from('request_table').insert([
-                {
-                    request_type: 'issue-report',
-                    requester_id: requesterId,
-                    requested_by: requesterEmail,
-                    category: selectedAsset.category,
-                    asset_type: selectedAsset.asset_name,
-                    priority: priority.value,
-                    reason: issueTitle.trim(),
-                    expected_duration: null,
-                    additional_notes: issueSummary,
-                    status: 'PENDING',
-                },
-            ]);
-
-            if (error) {
-                Alert.alert('Error', error.message || 'Failed to submit issue.');
+            if (!requesterId) {
+                Alert.alert('Error', 'You must be logged in to submit an issue.');
                 return;
             }
 
+            await createIssue({
+                assetId: String(selectedAsset.id),
+                reportedBy: requesterId,
+                type: String(issueType.value),
+                title: issueTitle,
+                priority: String(priority.value),
+                startedAt,
+                description,
+                attachments: attachments.map((item) => item.url),
+            });
+
+            const keyIdentity = user?.id || user?.email || 'anonymous';
+            queryClient.invalidateQueries({ queryKey: queryKeys.requests.employeeOpenIssues(keyIdentity) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.issues.employee(requesterId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.issues.operations });
+
             Alert.alert('Issue Submitted', 'Your issue has been submitted successfully.');
             resetForm();
+        } catch (error) {
+            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to submit issue.');
         } finally {
             setIsSubmitting(false);
         }

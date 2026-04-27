@@ -20,17 +20,14 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function UsersScreen() {
 
-    // ── TanStack Query hooks ──────────────────────────────────────
     const { data: users = [], isLoading, error } = useUsers();
     const updateUserMutation = useUpdateUser();
 
-    // ── UI state only (no data fetching state needed anymore) ─────
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [selectedDepartment, setSelectedDepartment] = useState<string>('All');
     const [searchText, setSearchText] = useState('');
 
-    // Edit form fields
     const [editName, setEditName] = useState('');
     const [editEmail, setEditEmail] = useState('');
     const [editRole, setEditRole] = useState('');
@@ -39,7 +36,6 @@ export default function UsersScreen() {
     const [showRoleDropdown, setShowRoleDropdown] = useState(false);
     const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
 
-    // ── Handlers ──────────────────────────────────────────────────
     const handleSelectUser = (user: User) => {
         setSelectedUser(user);
         setEditName(user.name);
@@ -71,7 +67,6 @@ export default function UsersScreen() {
                 onSuccess: () => {
                     Alert.alert('Success', 'User updated!');
                     setSelectedUser(null);
-                    // No need to call loadUsers() — invalidateQueries auto-refreshes the list
                 },
                 onError: (err: any) => {
                     Alert.alert('Error', err.message || 'Failed to update user');
@@ -80,7 +75,6 @@ export default function UsersScreen() {
         );
     };
 
-    // ── Derived data ──────────────────────────────────────────────
     const filteredUsers = users.filter(user => {
         const matchesDept = selectedDepartment === 'All' || user.department === selectedDepartment;
         const matchesSearch =
@@ -89,15 +83,11 @@ export default function UsersScreen() {
         return matchesDept && matchesSearch;
     });
 
-    // isLoading from useQuery replaces the old manual 'loading' state
-    // isPending from useMutation replaces the old manual 'updating' state
     const isUpdating = updateUserMutation.isPending;
 
-    // ── Early returns for loading/error ───────────────────────────
     if (isLoading) return <ActivityIndicator size="large" color="#1b72fc" style={{ marginTop: 40 }} />;
     if (error) return <Text style={{ margin: 20, color: 'red' }}>Failed to load users. Please restart.</Text>;
 
-    // ── Render ────────────────────────────────────────────────────
     const renderUserItem = ({ item }: { item: User }) => (
         <Pressable
             onPress={() => handleSelectUser(item)}
@@ -130,7 +120,7 @@ export default function UsersScreen() {
 
     return (
         <View className="flex-1 bg-background">
-            {/* Top bar */}
+      
             <View className="px-5 pt-4 pb-3 gap-3">
                 <View className="flex-row gap-2 items-center">
                     <View className="flex-1 flex-row items-center bg-accent-100 border border-border rounded-xl px-3 gap-2">

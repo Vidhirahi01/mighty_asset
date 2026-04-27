@@ -23,4 +23,12 @@ export const queryKeys = {
         managerInbox: (managerId: string) => ['requests', 'manager-inbox', managerId] as const,
         all: ['requests', 'all'] as const,
     },
+
+    issues: {
+        all: ['issues', 'all'] as const,
+        operations: ['issues', 'operations'] as const,
+        technicians: ['issues', 'technicians'] as const,
+        employee: (userId: string) => ['issues', 'employee', userId] as const,
+        openCount: (userId: string) => ['issues', 'open-count', userId] as const,
+    },
 };
