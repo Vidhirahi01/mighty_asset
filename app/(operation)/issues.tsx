@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useAssignIssueTechnician, useIssueTechnicians, useOperationsIssues, useUpdateIssueStatus } from '@/hooks/queries/useIssues';
-import { IssueWorkflowStatus } from '@/services/issue.service';
+import { IssueListItem, IssueWorkflowStatus } from '@/services/issue.service';
+import { BottomSheetBackdrop, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { useAuthStore } from '@/store/authStore';
 
 const toTitle = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
@@ -38,9 +40,27 @@ export default function IssuesScreen() {
     const { data: technicians = [] } = useIssueTechnicians();
     const updateStatus = useUpdateIssueStatus();
     const assignTechnician = useAssignIssueTechnician();
+    const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+    const snapPoints = ['55%', '85%'];
+    const currentUser = useAuthStore((state) => state.user);
 
     const [expandedId, setExpandedId] = useState<string | null>(null);
-    const [selectedTechnicianByIssue, setSelectedTechnicianByIssue] = useState<Record<string, string>>({});
+    const [selectedStatusFilter, setSelectedStatusFilter] = useState<'ALL' | IssueWorkflowStatus>('ALL');
+    const [selectedIssue, setSelectedIssue] = useState<IssueListItem | null>(null);
+    const [selectedTechnician, setSelectedTechnician] = useState<string>('');
+    const [selectedTechnicianId, setSelectedTechnicianId] = useState<string>('');
+
+    const renderBackdrop = useCallback(
+        (props: any) => (
+            <BottomSheetBackdrop
+                {...props}
+                opacity={0.5}
+                disappearsOnIndex={-1}
+                pressBehavior="close"
+            />
+        ),
+        []
+    );
 
     const stats = useMemo(() => ({
         pendingReview: issues.filter((item) => item.status === 'PENDING_REVIEW').length,
@@ -49,14 +69,48 @@ export default function IssuesScreen() {
         resolved: issues.filter((item) => item.status === 'RESOLVED').length,
     }), [issues]);
 
+    const visibleIssues = useMemo(() => {
+        const filtered = selectedStatusFilter === 'ALL'
+            ? issues
+            : issues.filter((item) => item.status === selectedStatusFilter);
+
+        return [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }, [issues, selectedStatusFilter]);
+
     const handleStatus = (issueId: string, status: IssueWorkflowStatus) => {
         updateStatus.mutate({ issueId, status });
     };
 
     const handleAssign = (issueId: string) => {
-        const tech = selectedTechnicianByIssue[issueId] || technicians[0]?.name;
-        if (!tech) return;
-        assignTechnician.mutate({ issueId, technicianName: tech, activate: true });
+        const issue = issues.find((item) => item.id === issueId) ?? null;
+        if (!issue) return;
+
+        setSelectedIssue(issue);
+        const defaultTech = technicians[0];
+        const preselectedTech = technicians.find((tech) => tech.name === issue.metadata.assignedTechnician) ?? defaultTech;
+        setSelectedTechnician(preselectedTech?.name || '');
+        setSelectedTechnicianId(preselectedTech?.id || '');
+        bottomSheetModalRef.current?.present();
+    };
+
+    const handleConfirmTechnician = () => {
+        if (!selectedIssue || !selectedTechnician || !selectedTechnicianId) return;
+
+        assignTechnician.mutate(
+            {
+                issueId: selectedIssue.id,
+                technicianId: selectedTechnicianId,
+                technicianName: selectedTechnician,
+                assignedById: currentUser?.id ?? null,
+                activate: true,
+            },
+            {
+                onSuccess: () => {
+                    bottomSheetModalRef.current?.dismiss();
+                    setSelectedIssue(null);
+                },
+            }
+        );
     };
 
     return (
@@ -74,6 +128,31 @@ export default function IssuesScreen() {
                     <Card className="w-[48%] border border-emerald-200 bg-emerald-50"><CardContent className="py-3"><Text className="text-xs text-emerald-700">Resolved</Text><Text className="text-xl font-bold text-emerald-800">{stats.resolved}</Text></CardContent></Card>
                 </View>
 
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-1">
+                    <View className="flex-row gap-2 px-1">
+                        {([
+                            { key: 'ALL', label: 'All', count: issues.length },
+                            { key: 'PENDING_REVIEW', label: 'Pending Review', count: stats.pendingReview },
+                            { key: 'PROGRESS_REVIEW', label: 'Progress Review', count: stats.progressReview },
+                            { key: 'ACTIVE', label: 'Active', count: stats.active },
+                            { key: 'RESOLVED', label: 'Resolved', count: stats.resolved },
+                        ] as const).map((chip) => {
+                            const active = selectedStatusFilter === chip.key;
+                            return (
+                                <Pressable
+                                    key={chip.key}
+                                    onPress={() => setSelectedStatusFilter(chip.key)}
+                                    className={`rounded-full border px-3 py-2 ${active ? 'border-primary bg-primary/10' : 'border-border bg-card'}`}
+                                >
+                                    <Text className={`text-xs font-semibold ${active ? 'text-primary' : 'text-foreground'}`}>
+                                        {chip.label} ({chip.count})
+                                    </Text>
+                                </Pressable>
+                            );
+                        })}
+                    </View>
+                </ScrollView>
+
                 <Card className="border border-border bg-card">
                     <CardHeader>
                         <CardTitle className="text-foreground">All Reported Issues</CardTitle>
@@ -84,11 +163,10 @@ export default function IssuesScreen() {
                                 <ActivityIndicator color="#1b72fc" />
                                 <Text className="mt-2 text-sm text-muted-foreground">Loading issues...</Text>
                             </View>
-                        ) : issues.length === 0 ? (
+                        ) : visibleIssues.length === 0 ? (
                             <Text className="text-sm text-muted-foreground">No issues found in issues table.</Text>
-                        ) : issues.map((issue) => {
+                        ) : visibleIssues.map((issue) => {
                             const expanded = expandedId === issue.id;
-                            const selectedTech = selectedTechnicianByIssue[issue.id] || issue.metadata.assignedTechnician || technicians[0]?.name || '';
 
                             return (
                                 <Pressable key={issue.id} onPress={() => setExpandedId(expanded ? null : issue.id)} className="rounded-xl border border-border bg-background p-3">
@@ -112,45 +190,13 @@ export default function IssuesScreen() {
                                             <Text className="text-xs text-foreground/70">Technician: {issue.metadata.assignedTechnician}</Text>
 
                                             <View className="mt-2 flex-row flex-wrap gap-2">
-                                                {technicians.map((tech) => {
-                                                    const selected = selectedTech === tech.name;
-                                                    return (
-                                                        <Pressable
-                                                            key={`${issue.id}-${tech.id}`}
-                                                            onPress={() => setSelectedTechnicianByIssue((prev) => ({ ...prev, [issue.id]: tech.name }))}
-                                                            className={`rounded-full border px-3 py-1 ${selected ? 'border-primary bg-primary/10' : 'border-border bg-card'}`}>
-                                                            <Text className={`text-xs font-semibold ${selected ? 'text-primary' : 'text-foreground'}`}>{tech.name}</Text>
-                                                        </Pressable>
-                                                    );
-                                                })}
-                                            </View>
 
-                                            <View className="mt-2 flex-row flex-wrap gap-2">
-                                                <Pressable
-                                                    onPress={() => handleStatus(issue.id, 'PENDING_REVIEW')}
-                                                    className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
-                                                    <Text className="text-xs font-semibold text-amber-800">Pending Review</Text>
-                                                </Pressable>
-                                                <Pressable
-                                                    onPress={() => handleStatus(issue.id, 'PROGRESS_REVIEW')}
-                                                    className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2">
-                                                    <Text className="text-xs font-semibold text-sky-800">Approve Progress</Text>
-                                                </Pressable>
                                                 <Pressable
                                                     onPress={() => handleAssign(issue.id)}
                                                     className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2">
                                                     <Text className="text-xs font-semibold text-indigo-800">Assign Technician</Text>
                                                 </Pressable>
-                                                <Pressable
-                                                    onPress={() => handleStatus(issue.id, 'ACTIVE')}
-                                                    className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2">
-                                                    <Text className="text-xs font-semibold text-blue-800">Mark Active</Text>
-                                                </Pressable>
-                                                <Pressable
-                                                    onPress={() => handleStatus(issue.id, 'RESOLVED')}
-                                                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2">
-                                                    <Text className="text-xs font-semibold text-emerald-800">Mark Resolved</Text>
-                                                </Pressable>
+
                                             </View>
                                         </View>
                                     ) : null}
@@ -161,6 +207,91 @@ export default function IssuesScreen() {
                 </Card>
             </View>
             <View style={{ height: 140 }} />
+
+            <BottomSheetModal
+                ref={bottomSheetModalRef}
+                snapPoints={snapPoints}
+                backdropComponent={renderBackdrop}
+                backgroundStyle={{ backgroundColor: '#f8f9fa' }}
+                handleIndicatorStyle={{ backgroundColor: '#1b72fc' }}
+                onDismiss={() => {
+                    setSelectedIssue(null);
+                    setSelectedTechnician('');
+                    setSelectedTechnicianId('');
+                }}
+            >
+                <BottomSheetScrollView className="flex-1 bg-background px-4 pt-4" keyboardShouldPersistTaps="handled">
+                    <View className="mb-4 flex-row items-start justify-between gap-3">
+                        <View className="flex-1">
+                            <Text className="text-2xl font-bold text-foreground">Assign Technician</Text>
+                            <Text className="mt-1 text-sm text-muted-foreground">Select technician and review issue details before assigning.</Text>
+                        </View>
+                    </View>
+
+                    {selectedIssue ? (
+                        <View className="gap-4 pb-32">
+                            <Card className="border border-border bg-card">
+                                <CardHeader>
+                                    <CardTitle className="text-foreground">Issue Details</CardTitle>
+                                </CardHeader>
+                                <CardContent className="gap-2">
+                                    <Text className="text-sm font-semibold text-foreground">{selectedIssue.metadata.title}</Text>
+                                    <Text className="text-xs text-muted-foreground">{selectedIssue.assetName} • {toTitle(selectedIssue.assetCategory)}</Text>
+                                    <Text className="text-xs text-muted-foreground">Reported by {selectedIssue.reportedByName}</Text>
+                                    <Text className="text-xs text-muted-foreground">Status: {formatStatus(selectedIssue.status)}</Text>
+                                    <Text className="text-xs text-foreground/80">{selectedIssue.metadata.details}</Text>
+                                    <Text className="text-xs text-foreground/70">Priority: {toTitle(selectedIssue.metadata.priority)}</Text>
+                                    <Text className="text-xs text-foreground/70">Started: {selectedIssue.metadata.startedAt}</Text>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border border-border bg-card">
+                                <CardHeader>
+                                    <CardTitle className="text-foreground">Select Technician</CardTitle>
+                                </CardHeader>
+                                <CardContent className="gap-2">
+                                    {technicians.length === 0 ? (
+                                        <Text className="text-sm text-muted-foreground">No technicians available.</Text>
+                                    ) : (
+                                        technicians.map((tech) => {
+                                            const selected = selectedTechnicianId === tech.id;
+                                            return (
+                                                <Pressable
+                                                    key={tech.id}
+                                                    onPress={() => {
+                                                        setSelectedTechnician(tech.name);
+                                                        setSelectedTechnicianId(tech.id);
+                                                    }}
+                                                    className={`rounded-xl border px-3 py-3 ${selected ? 'border-primary bg-primary/10' : 'border-border bg-background'}`}
+                                                >
+                                                    <Text className={`text-sm font-semibold ${selected ? 'text-primary' : 'text-foreground'}`}>{tech.name}</Text>
+                                                    {tech.email ? <Text className="text-xs text-muted-foreground">{tech.email}</Text> : null}
+                                                </Pressable>
+                                            );
+                                        })
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <View className="flex-row gap-3">
+                                <Pressable
+                                    onPress={() => bottomSheetModalRef.current?.dismiss()}
+                                    className="flex-1 items-center rounded-xl border border-border bg-card py-3"
+                                >
+                                    <Text className="font-semibold text-foreground">Cancel</Text>
+                                </Pressable>
+                                <Pressable
+                                    onPress={handleConfirmTechnician}
+                                    disabled={!selectedTechnicianId || assignTechnician.isPending}
+                                    className={`flex-1 items-center rounded-xl py-3 ${!selectedTechnicianId || assignTechnician.isPending ? 'bg-primary/40' : 'bg-primary'}`}
+                                >
+                                    <Text className="font-semibold text-white">{assignTechnician.isPending ? 'Assigning...' : 'Assign'}</Text>
+                                </Pressable>
+                            </View>
+                        </View>
+                    ) : null}
+                </BottomSheetScrollView>
+            </BottomSheetModal>
         </ScrollView>
     );
 }

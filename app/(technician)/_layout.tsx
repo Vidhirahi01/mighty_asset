@@ -137,6 +137,14 @@ export default function TechnicianLayout() {
                         tabBarIcon: ({ color }) => <Wrench size={20} color={color} />,
                     }}
                 />
+                <Tabs.Screen
+                    name="issue-details"
+                    options={{
+                        title: 'Repair Details',
+                        href: null,
+
+                    }}
+                />
             </Tabs>
         </View>
     );

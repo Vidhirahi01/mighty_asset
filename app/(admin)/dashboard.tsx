@@ -1,42 +1,31 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
-    BellRing, TriangleAlert, Users2, ActivitySquare, Settings, History,
+    BellRing, TriangleAlert, Users2, Settings, History,
     UserCheck, Shield, Briefcase, Wrench, Crown, Clock, CheckCircle2,
     FileText, RotateCcw, TrendingUp
 } from 'lucide-react-native';
+import { useMemo } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { FlatList } from 'react-native';
+import { useAssets } from '@/hooks/queries/useAssets';
+import { useOperationsIssues } from '@/hooks/queries/useIssues';
+import { useManagerRequests } from '@/hooks/queries/useRequests';
+import { useUsers } from '@/hooks/queries/useUsers';
 
 type StatItem = {
     label: string;
     count: number;
 };
 
-const STATS: StatItem[] = [
-    { label: 'Total Users', count: 156 },
-    { label: 'Active Users', count: 142 },
-    { label: 'Total Assets', count: 257 },
-    { label: 'Total Requests', count: 3 },
-];
-
-const Users: { role: string; count: number }[] = [
-    { role: 'Employees', count: 200 },
-    { role: 'Manager', count: 45 },
-    { role: 'Operation Team', count: 80 },
-    { role: 'Technicians', count: 120 },
-    { role: 'Administrators', count: 15 },
-];
+type UsersByRoleItem = {
+    role: string;
+    count: number;
+};
 type ActivityItem = {
     req: string;
     count: number;
 }
-const ACTIVITY: ActivityItem[] = [
-    { req: 'New Requests', count: 45 },
-    { req: 'Approvals', count: 32 },
-    { req: 'Assigns', count: 18 },
-    { req: 'Returns', count: 9 },
-];
 type QuickAction = {
     Label: string;
     description: string;
@@ -51,11 +40,6 @@ type Notifys = {
     Label: string;
     description: string;
 }
-const ALERTS: Notifys[] = [
-    { Label: 'Database backup scheduled tonight', description: 'Scheduled maintenance at 11:00 PM' },
-    { Label: '5 new user accounts created today', description: 'Review and approve' },
-
-];
 function MyCard({ item }: { item: StatItem }) {
     const getIcon = (label: string) => {
         const iconProps = { size: 24, color: '#ffffff', strokeWidth: 2 };
@@ -81,7 +65,7 @@ function MyCard({ item }: { item: StatItem }) {
     );
 }
 
-function ListUsers() {
+function ListUsers({ usersByRole }: { usersByRole: UsersByRoleItem[] }) {
     const getRoleIcon = (role: string) => {
         const iconProps = { size: 18, strokeWidth: 2 };
         switch (role) {
@@ -104,7 +88,7 @@ function ListUsers() {
             </CardHeader>
             <CardContent className="p-0">
                 <FlatList
-                    data={Users}
+                    data={usersByRole}
                     keyExtractor={(item) => item.role}
                     scrollEnabled={false}
                     renderItem={({ item, index }) => (
@@ -118,7 +102,7 @@ function ListUsers() {
                                     <Text className="text-primary font-bold text-sm">{item.count}</Text>
                                 </View>
                             </View>
-                            {index < Users.length - 1 && <Separator className="bg-border" />}
+                            {index < usersByRole.length - 1 && <Separator className="bg-border" />}
                         </>
                     )}
                 />
@@ -130,10 +114,10 @@ function SystemActivity({ item }: { item: ActivityItem }) {
     const getActivityIcon = (req: string) => {
         const iconProps = { size: 18, strokeWidth: 2 };
         switch (req) {
-            case 'New Requests': return <FileText color="#1b72fc" {...iconProps} />;
-            case 'Approvals': return <CheckCircle2 color="#10b981" {...iconProps} />;
-            case 'Assigns': return <UserCheck color="#8b5cf6" {...iconProps} />;
-            case 'Returns': return <RotateCcw color="#ef4444" {...iconProps} />;
+            case 'Pending Requests': return <FileText color="#1b72fc" {...iconProps} />;
+            case 'Approved Requests': return <CheckCircle2 color="#10b981" {...iconProps} />;
+            case 'Assigned Assets': return <UserCheck color="#8b5cf6" {...iconProps} />;
+            case 'Return Queue': return <RotateCcw color="#ef4444" {...iconProps} />;
             default: return null;
         }
     };
@@ -202,6 +186,117 @@ export default function Dashboard() {
         console.log(`Quick action pressed: ${action.Label}`);
     };
 
+    const { data: users = [] } = useUsers();
+    const { data: assets = [] } = useAssets();
+    const { data: requests = [] } = useManagerRequests();
+    const { data: issues = [] } = useOperationsIssues();
+
+    const stats: StatItem[] = useMemo(() => {
+        const totalUsers = users.length;
+        const activeUsers = users.filter((user) => user.is_active).length;
+        const totalAssets = assets.length;
+        const totalRequests = requests.length;
+
+        return [
+            { label: 'Total Users', count: totalUsers },
+            { label: 'Active Users', count: activeUsers },
+            { label: 'Total Assets', count: totalAssets },
+            { label: 'Total Requests', count: totalRequests },
+        ];
+    }, [users, assets, requests]);
+
+    const usersByRole: UsersByRoleItem[] = useMemo(() => {
+        const roleLabels = [
+            { key: 'EMPLOYEE', label: 'Employees' },
+            { key: 'MANAGER', label: 'Manager' },
+            { key: 'OPERATION', label: 'Operation Team' },
+            { key: 'TECHNICIAN', label: 'Technicians' },
+            { key: 'ADMIN', label: 'Administrators' },
+        ];
+
+        const counts = new Map(roleLabels.map((item) => [item.label, 0]));
+
+        users.forEach((user) => {
+            const role = String(user.role ?? '').trim().toUpperCase();
+            const match = roleLabels.find((item) => item.key === role);
+            if (match) {
+                counts.set(match.label, (counts.get(match.label) ?? 0) + 1);
+            }
+        });
+
+        return roleLabels.map((item) => ({
+            role: item.label,
+            count: counts.get(item.label) ?? 0,
+        }));
+    }, [users]);
+
+    const activity: ActivityItem[] = useMemo(() => {
+        const pendingRequests = requests.filter((request) =>
+            String(request.status ?? '').toUpperCase() === 'PENDING'
+        ).length;
+        const approvedRequests = requests.filter((request) =>
+            String(request.status ?? '').toUpperCase() === 'APPROVED'
+        ).length;
+        const assignedAssets = assets.filter((asset) =>
+            String(asset.status ?? '').toUpperCase() === 'ASSIGNED'
+        ).length;
+        const returnQueue = assets.filter((asset) =>
+            String(asset.status ?? '').toUpperCase() === 'RETURN_PENDING'
+        ).length;
+
+        return [
+            { req: 'Pending Requests', count: pendingRequests },
+            { req: 'Approved Requests', count: approvedRequests },
+            { req: 'Assigned Assets', count: assignedAssets },
+            { req: 'Return Queue', count: returnQueue },
+        ];
+    }, [requests, assets]);
+
+    const alerts: Notifys[] = useMemo(() => {
+        const lowStockCount = assets.filter((asset) => {
+            if (asset.minimum_stock_level == null || asset.quantity == null) return false;
+            return asset.quantity <= asset.minimum_stock_level;
+        }).length;
+
+        const pendingApprovals = requests.filter((request) =>
+            String(request.status ?? '').toUpperCase() === 'PENDING'
+        ).length;
+
+        const openIssues = issues.filter((issue) => issue.status !== 'RESOLVED').length;
+
+        const items: Notifys[] = [];
+
+        if (lowStockCount > 0) {
+            items.push({
+                Label: `${lowStockCount} low stock ${lowStockCount === 1 ? 'item' : 'items'}`,
+                description: 'Review inventory and restock soon.',
+            });
+        }
+
+        if (pendingApprovals > 0) {
+            items.push({
+                Label: `${pendingApprovals} pending ${pendingApprovals === 1 ? 'approval' : 'approvals'}`,
+                description: 'Asset requests are waiting for review.',
+            });
+        }
+
+        if (openIssues > 0) {
+            items.push({
+                Label: `${openIssues} open ${openIssues === 1 ? 'issue' : 'issues'}`,
+                description: 'Operations issues need attention.',
+            });
+        }
+
+        if (items.length === 0) {
+            items.push({
+                Label: 'All caught up',
+                description: 'No critical alerts right now.',
+            });
+        }
+
+        return items;
+    }, [assets, requests, issues]);
+
     return (
         <ScrollView className="flex-1 h-full bg-background pb-65" showsVerticalScrollIndicator={false}>
 
@@ -209,7 +304,7 @@ export default function Dashboard() {
                 <Text className="text-foreground text-lg font-bold ml-2 mb-2">Dashboard Overview</Text>
             </View>
             <FlatList
-                data={STATS}
+                data={stats}
                 keyExtractor={(item) => item.label}
                 numColumns={2}
                 contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 10 }}
@@ -217,17 +312,17 @@ export default function Dashboard() {
                 renderItem={({ item }) => <MyCard item={item} />}
                 scrollEnabled={false}
             />
-            <ListUsers />
+            <ListUsers usersByRole={usersByRole} />
 
             <View className="px-5 py-4">
                 <View className="flex-row items-center">
                     <Clock color="#1b72fc" size={18} strokeWidth={2} />
-                    <Text className="text-foreground text-lg font-bold ml-2">Last 24 Hours Activity</Text>
+                    <Text className="text-foreground text-lg font-bold ml-2">Current Activity</Text>
                 </View>
             </View>
             {/* <Card className='p-0 mx-3 mb-3 bg-accent border border-border shadow-md'> */}
             <FlatList
-                data={ACTIVITY}
+                data={activity}
                 keyExtractor={(item) => item.req}
                 numColumns={2}
                 contentContainerStyle={{ paddingHorizontal: 10 }}
@@ -261,7 +356,7 @@ export default function Dashboard() {
                     <Text className='text-white ml-3 text-lg font-bold'>Alerts & Notifications</Text>
                 </View>
                 <FlatList
-                    data={ALERTS}
+                    data={alerts}
                     keyExtractor={(item) => item.Label}
                     contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 10 }}
                     renderItem={({ item }) => <AlertsNotifys item={item} />}

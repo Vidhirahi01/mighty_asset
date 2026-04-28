@@ -6,7 +6,9 @@ import {
     getIssueTechnicians,
     getIssuesByReporter,
     getIssuesForOperations,
+    getIssuesForTechnician,
     IssueWorkflowStatus,
+    saveRepairProgress,
     updateIssueStatus,
 } from '@/services/issue.service';
 
@@ -21,6 +23,16 @@ export function useIssueTechnicians() {
     return useQuery({
         queryKey: queryKeys.issues.technicians,
         queryFn: getIssueTechnicians,
+    });
+}
+
+export function useTechnicianIssues(technicianId?: string | null) {
+    const techId = technicianId?.trim() || '';
+
+    return useQuery({
+        queryKey: queryKeys.issues.byTechnician(techId || 'anonymous'),
+        queryFn: () => getIssuesForTechnician(techId),
+        enabled: Boolean(techId),
     });
 }
 
@@ -54,16 +66,35 @@ export function useUpdateIssueStatus() {
 export function useAssignIssueTechnician() {
     const queryClient = useQueryClient();
 
-    return useMutation<void, Error, { issueId: string; technicianName: string; activate?: boolean }>({
-        mutationFn: ({ issueId, technicianName, activate }) =>
-            assignIssueTechnician({ issueId, technicianName, activate }),
+    return useMutation<void, Error, { issueId: string; technicianId: string; technicianName: string; assignedById?: string | null; activate?: boolean }>({
+        mutationFn: ({ issueId, technicianId, technicianName, assignedById, activate }) =>
+            assignIssueTechnician({ issueId, technicianId, technicianName, assignedById, activate }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.issues.operations });
             queryClient.invalidateQueries({ queryKey: queryKeys.issues.all });
             queryClient.invalidateQueries({ queryKey: ['issues', 'employee'] });
+            queryClient.invalidateQueries({ queryKey: ['issues', 'technician'] });
         },
         onError: (error) => {
             Alert.alert('Error', error.message || 'Failed to assign technician.');
+        },
+    });
+}
+
+export function useSaveRepairProgress() {
+    const queryClient = useQueryClient();
+
+    return useMutation<
+        { id: string },
+        Error,
+        { assetId: string; technicianId: string; status: string; notes: string }
+    >({
+        mutationFn: saveRepairProgress,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['issues', 'technician'] });
+        },
+        onError: (error) => {
+            Alert.alert('Error', error.message || 'Failed to save repair progress.');
         },
     });
 }

@@ -219,12 +219,14 @@ export async function updateIssueStatus(issueId: string, status: IssueWorkflowSt
 
 export async function assignIssueTechnician(params: {
     issueId: string;
+    technicianId: string;
     technicianName: string;
+    assignedById?: string | null;
     activate?: boolean;
 }): Promise<void> {
     const { data: row, error: readError } = await supabase
         .from('issues_table')
-        .select('description')
+        .select('description, asset_id')
         .eq('id', params.issueId)
         .single();
 
@@ -232,7 +234,14 @@ export async function assignIssueTechnician(params: {
         throw new Error(readError.message || 'Failed to load issue details.');
     }
 
-    const meta = parseIssueDescription((row as { description?: string | null })?.description ?? null);
+    const issueRow = row as { description?: string | null; asset_id?: string | null };
+    const assetId = issueRow?.asset_id ?? null;
+
+    if (!assetId) {
+        throw new Error('Issue is missing asset information.');
+    }
+
+    const meta = parseIssueDescription(issueRow?.description ?? null);
 
     const merged = [
         `Title: ${meta.title}`,
@@ -251,6 +260,35 @@ export async function assignIssueTechnician(params: {
         updatePayload.status = 'ACTIVE';
     }
 
+    const assignedAt = new Date().toISOString();
+
+    const { error: assignError } = await supabase
+        .from('assign_table')
+        .insert({
+            asset_id: assetId,
+            assigned_by: params.assignedById ?? null,
+            assigned_to: params.technicianId,
+            assigned_at: assignedAt,
+            status: params.activate ? 'ACTIVE' : 'ASSIGNED',
+        });
+
+    if (assignError) {
+        throw new Error(assignError.message || 'Failed to create assignment record.');
+    }
+
+    const { error: repairError } = await supabase
+        .from('repair_table')
+        .insert({
+            asset_id: assetId,
+            technician_id: params.technicianId,
+            status: params.activate ? 'ACTIVE' : 'ASSIGNED',
+            notes: `Assigned from issue ${params.issueId}`,
+        });
+
+    if (repairError) {
+        throw new Error(repairError.message || 'Failed to create repair record.');
+    }
+
     const { error: updateError } = await supabase
         .from('issues_table')
         .update(updatePayload)
@@ -259,6 +297,106 @@ export async function assignIssueTechnician(params: {
     if (updateError) {
         throw new Error(updateError.message || 'Failed to assign technician.');
     }
+}
+
+export async function getIssuesForTechnician(technicianId: string): Promise<IssueListItem[]> {
+    const techId = technicianId.trim();
+    if (!techId) return [];
+
+    const { data: repairs, error: repairError } = await supabase
+        .from('repair_table')
+        .select('asset_id')
+        .eq('technician_id', techId);
+
+    if (repairError) {
+        throw new Error(repairError.message || 'Failed to load technician repairs.');
+    }
+
+    const assetIds = Array.from(
+        new Set(
+            (repairs ?? [])
+                .map((row) => row.asset_id)
+                .filter((assetId): assetId is string => Boolean(assetId))
+        )
+    );
+
+    if (assetIds.length === 0) {
+        return [];
+    }
+
+    const { data, error } = await supabase
+        .from('issues_table')
+        .select('id, created_at, status, type, asset_id, reported_by, description, asset:asset_id(asset_name, category), reporter:reported_by(name, email)')
+        .in('asset_id', assetIds)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        throw new Error(error.message || 'Failed to load technician issues.');
+    }
+
+    return ((data ?? []) as Array<{
+        id: string;
+        created_at: string;
+        status: string | null;
+        type: string | null;
+        asset_id: string | null;
+        reported_by: string | null;
+        description: string | null;
+        asset: { asset_name?: string | null; category?: string | null } | null;
+        reporter: { name?: string | null; email?: string | null } | null;
+    }>).map(toIssueListItem);
+}
+
+export async function saveRepairProgress(params: {
+    assetId: string;
+    technicianId: string;
+    status: string;
+    notes: string;
+}) {
+    const { data, error } = await supabase
+        .from('repair_table')
+        .select('id')
+        .eq('asset_id', params.assetId)
+        .eq('technician_id', params.technicianId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+    if (error) {
+        throw new Error(error.message || 'Failed to load repair record.');
+    }
+
+    const repairId = data?.[0]?.id as string | undefined;
+    const payload = {
+        asset_id: params.assetId,
+        technician_id: params.technicianId,
+        status: params.status,
+        notes: params.notes,
+    };
+
+    if (repairId) {
+        const { error: updateError } = await supabase
+            .from('repair_table')
+            .update(payload)
+            .eq('id', repairId);
+
+        if (updateError) {
+            throw new Error(updateError.message || 'Failed to update repair record.');
+        }
+
+        return { id: repairId };
+    }
+
+    const { data: created, error: insertError } = await supabase
+        .from('repair_table')
+        .insert(payload)
+        .select('id')
+        .single();
+
+    if (insertError) {
+        throw new Error(insertError.message || 'Failed to create repair record.');
+    }
+
+    return { id: String(created.id) };
 }
 
 export async function getIssueTechnicians(): Promise<TechnicianUser[]> {
@@ -283,7 +421,7 @@ export async function getIssueTechnicians(): Promise<TechnicianUser[]> {
     return users
         .filter((user) => {
             const role = String(user.role ?? '').toUpperCase();
-            return role.includes('TECHNICIAN') || role === 'OPERATION' || role === 'OPERATIONS';
+            return role === 'TECHNICIAN';
         })
         .map((user) => ({
             id: user.id,

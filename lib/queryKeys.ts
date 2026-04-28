@@ -1,5 +1,5 @@
 export const queryKeys = {
-    // Users
+ 
     users: {
         all: ['users', 'all'] as const,
         byEmail: (email: string) => ['users', 'by-email', email] as const,
@@ -28,6 +28,7 @@ export const queryKeys = {
         all: ['issues', 'all'] as const,
         operations: ['issues', 'operations'] as const,
         technicians: ['issues', 'technicians'] as const,
+        byTechnician: (technicianId: string) => ['issues', 'technician', technicianId] as const,
         employee: (userId: string) => ['issues', 'employee', userId] as const,
         openCount: (userId: string) => ['issues', 'open-count', userId] as const,
     },
