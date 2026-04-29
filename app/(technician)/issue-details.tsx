@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
-import { useSaveRepairProgress, useTechnicianIssues } from '@/hooks/queries/useIssues';
+import { useSaveRepairProgress, useTechnicianIssues, useUpdateIssueStatus } from '@/hooks/queries/useIssues';
 import { useAuthStore } from '@/store/authStore';
 
 const toTitle = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
@@ -17,6 +17,7 @@ export default function IssueDetailsScreen() {
     const currentUser = useAuthStore((state) => state.user);
     const { data: issues = [], isLoading } = useTechnicianIssues(currentUser?.id);
     const saveRepair = useSaveRepairProgress();
+    const updateStatus = useUpdateIssueStatus();
 
     const selectedIssue = useMemo(
         () => issues.find((issue) => issue.id === issueId) ?? null,
@@ -61,12 +62,21 @@ export default function IssueDetailsScreen() {
 
         const status = statusOverride ?? repairStatus;
 
-        saveRepair.mutate({
-            assetId: selectedIssue.assetId,
-            technicianId: currentUser.id,
-            status,
-            notes: buildNotes(),
-        });
+        saveRepair.mutate(
+            {
+                assetId: selectedIssue.assetId,
+                technicianId: currentUser.id,
+                status,
+                notes: buildNotes(),
+            },
+            {
+                onSuccess: () => {
+                    if (statusOverride === 'RESOLVED' || statusOverride === 'UNREPAIRABLE') {
+                        updateStatus.mutate({ issueId: selectedIssue.id, status: 'RESOLVED' });
+                    }
+                },
+            }
+        );
     };
 
     return (
@@ -205,13 +215,13 @@ export default function IssueDetailsScreen() {
                                 >
                                     <Text className="font-semibold text-rose-800">Mark as Unrepairable</Text>
                                 </Pressable>
-                               <Pressable
+                                <Pressable
                                     onPress={() => handleSave()}
                                     disabled={saveRepair.isPending}
                                     className="flex-1 items-center rounded-xl bg-primary py-3 px-4"
                                 >
                                     <Text className="font-semibold text-white">{saveRepair.isPending ? 'Saving...' : 'Save Progress'}</Text>
-                                </Pressable> 
+                                </Pressable>
                             </View>
                         </>
                     )}

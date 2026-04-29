@@ -90,8 +90,14 @@ export function useSaveRepairProgress() {
         { assetId: string; technicianId: string; status: string; notes: string }
     >({
         mutationFn: saveRepairProgress,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['issues', 'technician'] });
+        onSuccess: (_data, variables) => {
+            const techId = variables?.technicianId?.trim() || '';
+            if (techId) {
+                queryClient.invalidateQueries({ queryKey: queryKeys.issues.byTechnician(techId) });
+            }
+            // also refresh operations / all issues so other views update
+            queryClient.invalidateQueries({ queryKey: queryKeys.issues.operations });
+            queryClient.invalidateQueries({ queryKey: queryKeys.issues.all });
         },
         onError: (error) => {
             Alert.alert('Error', error.message || 'Failed to save repair progress.');

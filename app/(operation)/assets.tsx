@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { BadgeAlert, Bug, CheckCheck, GitPullRequestArrow } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { useAssetStats } from '@/hooks/queries/useAssets';
+import { useAssetStats, usePopularAssetCategories } from '@/hooks/queries/useAssets';
 
 type StatItem = {
     label: string;
@@ -12,16 +12,10 @@ type StatItem = {
 };
 
 type CategoryItem = {
+    key: string;
     label: string;
     count: number;
 };
-
-const POPULAR_CATEGORIES: CategoryItem[] = [
-    { label: 'Laptops', count: 76 },
-    { label: 'Monitors', count: 42 },
-    { label: 'Accessories', count: 33 },
-    { label: 'Networking', count: 18 },
-];
 
 function MyCard({ item }: { item: StatItem }) {
     const getIcon = (label: string) => {
@@ -62,6 +56,7 @@ function CategoryCard({ item }: { item: CategoryItem }) {
 export default function OperationAssetsScreen() {
     const router = useRouter();
     const { data: stats, isLoading } = useAssetStats();
+    const { data: popularCategories = [], isLoading: popularCategoriesLoading } = usePopularAssetCategories();
     const statItems: StatItem[] = [
         { label: 'Total Assets', count: stats?.total ?? 0 },
         { label: 'Available', count: stats?.available ?? 0 },
@@ -115,14 +110,21 @@ export default function OperationAssetsScreen() {
                     <View className="flex-row gap-2">
                         <FlatList
                             scrollEnabled={false}
-                            data={POPULAR_CATEGORIES}
+                            data={popularCategories.map((item) => ({
+                                key: item.key,
+                                label: item.label,
+                                count: item.total,
+                            }))}
                             renderItem={({ item }) => <CategoryCard item={item} />}
-                            keyExtractor={(item) => item.label}
+                            keyExtractor={(item) => item.key}
                             numColumns={2}
                             columnWrapperStyle={{ gap: 8 }}
                         />
                     </View>
                 </View>
+                {popularCategoriesLoading ? (
+                    <Text className="mt-2 text-sm text-muted-foreground">Loading popular categories...</Text>
+                ) : null}
             </ScrollView>
         </View>
     );

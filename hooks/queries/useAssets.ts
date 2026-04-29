@@ -1,7 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import { getAssets } from '@/services/asset.service';
+import { getAssets, getPopularAssetCategories } from '@/services/asset.service';
 
 const AssetStatus = (value: string | null | undefined) => {
     const status = (value ?? '').toLowerCase().replace(/[_\s-]/g, '');
@@ -13,8 +13,8 @@ const AssetStatus = (value: string | null | undefined) => {
 
 export function useAssets(category?: string) {
     return useQuery({
-        queryKey: ['assets', category], 
-    queryFn: () => getAssets(category),
+        queryKey: ['assets', category],
+        queryFn: () => getAssets(category),
     });
 }
 
@@ -30,5 +30,12 @@ export function useAssetStats() {
                 inRepair: assets.filter(a => AssetStatus(a.status) === 'in_repair').length,
             };
         },
+    });
+}
+
+export function usePopularAssetCategories() {
+    return useQuery({
+        queryKey: ['assets', 'popular-categories'],
+        queryFn: getPopularAssetCategories,
     });
 }

@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Wrench, LogOut } from 'lucide-react-native';
+import { Wrench, LogOut, AlertCircleIcon } from 'lucide-react-native';
 import { NAV_THEME } from '@/lib/theme';
 import React, { useState } from 'react';
 import { View, Alert, Pressable } from 'react-native';
@@ -145,6 +145,7 @@ export default function TechnicianLayout() {
 
                     }}
                 />
+                00000000
             </Tabs>
         </View>
     );
