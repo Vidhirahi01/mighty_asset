@@ -157,18 +157,18 @@ export function useAssignAssetToEmployee() {
 export function useApproveReturnRequest() {
     const queryClient = useQueryClient();
 
-    return useMutation<void, Error, { requestId: string }>(
-        {
-            mutationFn: ({ requestId }) => approveReturnRequest(requestId),
-            onSuccess: () => {
-                queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
-                queryClient.invalidateQueries({ queryKey: queryKeys.requests.returnRequests('all') });
-                queryClient.invalidateQueries({ queryKey: ['assets'] });
-                queryClient.invalidateQueries({ queryKey: queryKeys.assets.stats });
-            },
-            onError: (error) => {
-                Alert.alert('Error', error.message || 'Failed to approve return request.');
-            },
-        }
-    );
+    return useMutation<void, Error, { requestId: string }>({
+        mutationFn: ({ requestId }) => approveReturnRequest(requestId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
+            queryClient.invalidateQueries({ queryKey: queryKeys.requests.returnRequests('all') });
+            queryClient.invalidateQueries({ queryKey: ['assets'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.assets.stats });
+            queryClient.invalidateQueries({ queryKey: ['requests', 'employee-assigned-assets'] });
+            queryClient.invalidateQueries({ queryKey: ['requests', 'employee-asset-requests'] });
+        },
+        onError: (error) => {
+            Alert.alert('Error', error.message || 'Failed to approve return request.');
+        },
+    });
 }

@@ -723,9 +723,7 @@ export async function approveReturnRequest(requestId: string) {
         .update({ status: 'APPROVED' })
         .eq('id', requestId);
 
-    if (requestUpdateError) {
-        throw new Error(requestUpdateError.message);
-    }
+    if (requestUpdateError) throw new Error(requestUpdateError.message);
 
     const reasonText = String(requestRow?.reason ?? '');
     const conditionLine = reasonText.split('\n').find((line) => line.startsWith('Condition: '));
@@ -740,18 +738,14 @@ export async function approveReturnRequest(requestId: string) {
         })
         .eq('id', assetId);
 
-    if (assetUpdateError) {
-        throw new Error(assetUpdateError.message);
-    }
+    if (assetUpdateError) throw new Error(assetUpdateError.message);
 
-    // If there is an existing approved request that references this asset (the original assignment),
-    // mark it as returned so it no longer appears in employee assigned lists.
     try {
         const { data: assignedRequests, error: assignedReqError } = await supabase
             .from('request_table')
             .select('id, reason')
             .eq('asset_id', assetId)
-            .eq('status', 'APPROVED');
+            .in('status', ['APPROVED', 'RETURN_PENDING']); 
 
         if (assignedReqError) throw assignedReqError;
 
