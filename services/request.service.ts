@@ -82,6 +82,22 @@ export type EmployeeAssetRequest = {
     assignedAssetName: string | null;
 };
 
+export type ReturnRequestRow = {
+    id: string;
+    created_at: string;
+    user_id: string | null;
+    email: string | null;
+    asset_id: string | null;
+    asset_name: string | null;
+    category: string | null;
+    brand: string | null;
+    model_no: string | null;
+    quantity: number | null;
+    reason: string | null;
+    status: string | null;
+    type: string | null;
+};
+
 export async function getUserByEmail(email: string) {
     const { data, error } = await supabase
         .from('user_table')
@@ -608,4 +624,153 @@ export async function getEmployeeOpenIssueCount(params: {
     }
 
     return getOpenIssueCountByReporter(userId);
+}
+
+export async function getReturnRequest(params: {
+    userId?: string | null;
+    assetId?: string | null;
+    email?: string | null;
+} = {}): Promise<ReturnRequestRow[]> {
+    const userId = params.userId?.trim() || null;
+    const email = params.email?.trim() || null;
+    const assetId = params.assetId?.trim() || null;
+
+    let query = supabase
+        .from('request_table')
+        .select('id, created_at, user_id, email, asset_id, category, brand, model_no, quantity, reason, status, type')
+        .eq('type', 'return-asset');
+
+    if (userId && email) {
+        query = query.or(`user_id.eq.${userId},email.eq.${email}`);
+    } else if (userId) {
+        query = query.eq('user_id', userId);
+    } else if (email) {
+        query = query.eq('email', email);
+    }
+
+    if (assetId) {
+        query = query.eq('asset_id', assetId);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+
+    const rows = (data ?? []) as Array<{
+        id: string;
+        created_at: string;
+        user_id: string | null;
+        email: string | null;
+        asset_id: string | null;
+        category: string | null;
+        brand: string | null;
+        model_no: string | null;
+        quantity: number | null;
+        reason: string | null;
+        status: string | null;
+        type: string | null;
+    }>;
+
+    const assetIds = Array.from(
+        new Set(rows.map((row) => row.asset_id).filter((id): id is string => Boolean(id)))
+    );
+
+    let assetNameById = new Map<string, string | null>();
+    if (assetIds.length > 0) {
+        const { data: assets, error: assetError } = await supabase
+            .from('asset_table')
+            .select('id, asset_name')
+            .in('id', assetIds);
+
+        if (assetError) {
+            throw new Error(assetError.message);
+        }
+
+        assetNameById = new Map(
+            ((assets ?? []) as Array<{ id: string; asset_name: string | null }>).map((asset) => [
+                asset.id,
+                asset.asset_name ?? null,
+            ])
+        );
+    }
+
+    return rows.map((row) => ({
+        ...row,
+        asset_name: row.asset_id ? (assetNameById.get(row.asset_id) ?? null) : null,
+    }));
+}
+
+export async function approveReturnRequest(requestId: string) {
+    const { data: requestRow, error: requestError } = await supabase
+        .from('request_table')
+        .select('id, asset_id, reason, type, status')
+        .eq('id', requestId)
+        .single();
+
+    if (requestError) throw new Error(requestError.message);
+
+    const requestType = String(requestRow?.type ?? '').toLowerCase();
+    if (requestType !== 'return-asset') {
+        throw new Error('This request is not a return request.');
+    }
+
+    const assetId = String(requestRow?.asset_id ?? '').trim();
+    if (!assetId) {
+        throw new Error('Return request is missing asset reference.');
+    }
+
+    const { error: requestUpdateError } = await supabase
+        .from('request_table')
+        .update({ status: 'APPROVED' })
+        .eq('id', requestId);
+
+    if (requestUpdateError) {
+        throw new Error(requestUpdateError.message);
+    }
+
+    const reasonText = String(requestRow?.reason ?? '');
+    const conditionLine = reasonText.split('\n').find((line) => line.startsWith('Condition: '));
+    const returnCondition = conditionLine ? conditionLine.replace('Condition: ', '').trim() : null;
+
+    const { error: assetUpdateError } = await supabase
+        .from('asset_table')
+        .update({
+            status: 'AVAILABLE',
+            assigned_to: null,
+            condition: returnCondition,
+        })
+        .eq('id', assetId);
+
+    if (assetUpdateError) {
+        throw new Error(assetUpdateError.message);
+    }
+
+    // If there is an existing approved request that references this asset (the original assignment),
+    // mark it as returned so it no longer appears in employee assigned lists.
+    try {
+        const { data: assignedRequests, error: assignedReqError } = await supabase
+            .from('request_table')
+            .select('id, reason')
+            .eq('asset_id', assetId)
+            .eq('status', 'APPROVED');
+
+        if (assignedReqError) throw assignedReqError;
+
+        const rows = (assignedRequests ?? []) as Array<{ id: string; reason?: string | null }>;
+        const now = new Date().toISOString();
+
+        for (const row of rows) {
+            const existingReason = String(row.reason ?? '').trim();
+            const auditNote = `Returned on: ${now}`;
+            const mergedReason = [existingReason, auditNote].filter(Boolean).join('\n\n');
+
+            const { error: clearError } = await supabase
+                .from('request_table')
+                .update({ status: 'RETURNED', asset_id: null, reason: mergedReason })
+                .eq('id', row.id);
+
+            if (clearError) throw clearError;
+        }
+    } catch (err) {
+        throw new Error((err as Error).message || 'Failed to clear original assignment request.');
+    }
 }

@@ -17,6 +17,7 @@ import {
     updateWorkflowRequestStatus,
     getOperationsAssignmentRequests,
     assignAssetToEmployee,
+    approveReturnRequest,
 } from '@/services/request.service';
 
 export function useSubmitAssetRequest() {
@@ -118,6 +119,7 @@ export function useUpdateWorkflowRequestStatus() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
             queryClient.invalidateQueries({ queryKey: queryKeys.requests.operationsAssignmentQueue });
+            queryClient.invalidateQueries({ queryKey: queryKeys.requests.returnRequests('all') });
             queryClient.invalidateQueries({ queryKey: ['requests', 'employee-asset-requests'] });
         },
         onError: (error) => {
@@ -150,4 +152,23 @@ export function useAssignAssetToEmployee() {
             Alert.alert('Error', error.message || 'Failed to complete assignment.');
         },
     });
+}
+
+export function useApproveReturnRequest() {
+    const queryClient = useQueryClient();
+
+    return useMutation<void, Error, { requestId: string }>(
+        {
+            mutationFn: ({ requestId }) => approveReturnRequest(requestId),
+            onSuccess: () => {
+                queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
+                queryClient.invalidateQueries({ queryKey: queryKeys.requests.returnRequests('all') });
+                queryClient.invalidateQueries({ queryKey: ['assets'] });
+                queryClient.invalidateQueries({ queryKey: queryKeys.assets.stats });
+            },
+            onError: (error) => {
+                Alert.alert('Error', error.message || 'Failed to approve return request.');
+            },
+        }
+    );
 }

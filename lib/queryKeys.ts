@@ -1,5 +1,5 @@
 export const queryKeys = {
- 
+
     users: {
         all: ['users', 'all'] as const,
         byEmail: (email: string) => ['users', 'by-email', email] as const,
@@ -14,6 +14,7 @@ export const queryKeys = {
 
     requests: {
         list: (userId: string) => ['requests', 'list', userId] as const,
+        returnRequests: (identity: string) => ['requests', 'return-requests', identity] as const,
         employeeAssignedAssets: (identity: string) => ['requests', 'employee-assigned-assets', identity] as const,
         employeeAssetRequests: (identity: string) => ['requests', 'employee-asset-requests', identity] as const,
         employeeOpenIssues: (identity: string) => ['requests', 'employee-open-issues', identity] as const,
