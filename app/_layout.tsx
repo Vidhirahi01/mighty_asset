@@ -5,7 +5,16 @@ import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+import * as Notifications from 'expo-notifications';
 
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowBanner: true,  
+        shouldShowList: true,  
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+    }),
+});
 const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
@@ -14,6 +23,7 @@ const queryClient = new QueryClient({
         }
     }
 });
+
 
 export default function RootLayout() {
     const initializeAuth = useAuthStore((state) => state.initializeAuth);

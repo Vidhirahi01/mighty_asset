@@ -18,19 +18,28 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { loginUser } from '@/services/auth.service';
 import { getRoleBasedRoute } from '@/lib/navigationUtils';
+import { getPushToken } from '@/lib/tokens';
 
 
-export function SignInForm() {
+export async function SignInForm() {
   const passwordInputRef = React.useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
+
   function onEmailSubmitEditing() {
     passwordInputRef.current?.focus();
   }
 
   const onSubmit = async () => {
     try {
+      const token = await getPushToken();
+      if (token) {
+        await supabase
+          .from("user_table")
+          .update({ push_token: token })
+          .eq("id", email);
+      }
       console.log("Login attempt with email:", email);
       const user = await loginUser(email, password);
 
