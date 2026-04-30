@@ -260,21 +260,7 @@ export async function assignIssueTechnician(params: {
         updatePayload.status = 'ACTIVE';
     }
 
-    const assignedAt = new Date().toISOString();
 
-    const { error: assignError } = await supabase
-        .from('assign_table')
-        .insert({
-            asset_id: assetId,
-            assigned_by: params.assignedById ?? null,
-            assigned_to: params.technicianId,
-            assigned_at: assignedAt,
-            status: params.activate ? 'ACTIVE' : 'ASSIGNED',
-        });
-
-    if (assignError) {
-        throw new Error(assignError.message || 'Failed to create assignment record.');
-    }
 
     const { error: repairError } = await supabase
         .from('repair_table')
@@ -303,7 +289,6 @@ export async function getIssuesForTechnician(technicianId: string): Promise<Issu
     const techId = technicianId.trim();
     if (!techId) return [];
 
-    // Load repair rows for this technician and create a map of latest status per asset
     const { data: repairs, error: repairError } = await supabase
         .from('repair_table')
         .select('asset_id, status, created_at')
@@ -338,7 +323,6 @@ export async function getIssuesForTechnician(technicianId: string): Promise<Issu
 
     const repairsList = (repairs ?? []) as Array<{ asset_id?: string | null; status?: string | null; created_at?: string | null }>;
 
-    // Build a latest-status map for assets (first occurrence is latest due to ordering)
     const repairStatusByAsset = new Map<string, string | null>();
     for (const r of repairsList) {
         const aid = r.asset_id;
@@ -359,11 +343,9 @@ export async function getIssuesForTechnician(technicianId: string): Promise<Issu
         asset: { asset_name?: string | null; category?: string | null } | null;
         reporter: { name?: string | null; email?: string | null } | null;
     }>).map((row) => {
-        // If there is a repair status for this asset, prefer it over the issue row status
         const repairStatus = row.asset_id ? repairStatusByAsset.get(row.asset_id) ?? null : null;
 
         if (repairStatus) {
-            // clone row and override status so toIssueListItem will normalize it
             const cloned = { ...row, status: repairStatus };
             return toIssueListItem(cloned as any);
         }

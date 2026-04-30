@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, TextInput, View, Platform } from 'react-native';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
@@ -85,6 +86,8 @@ export default function ReportIssueScreen() {
     const [issueTitle, setIssueTitle] = useState('');
     const [description, setDescription] = useState('');
     const [startedAt, setStartedAt] = useState('');
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [selectedDate, setSelectedDate] = useState(new Date());
 
     const [attachments, setAttachments] = useState<IssueAttachment[]>([]);
     const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
@@ -237,6 +240,19 @@ export default function ReportIssueScreen() {
         setDescription('');
         setStartedAt('');
         setAttachments([]);
+        setShowDatePicker(false);
+        setSelectedDate(new Date());
+    };
+
+    const handleDateChange = (event: DateTimePickerEvent, date?: Date) => {
+        if (Platform.OS === 'android') {
+            setShowDatePicker(false);
+        }
+        if (event.type === 'set' && date) {
+            setSelectedDate(date);
+            const formattedDate = date.toISOString().split('T')[0];
+            setStartedAt(formattedDate);
+        }
     };
 
     const handleSubmit = async () => {
@@ -404,12 +420,31 @@ export default function ReportIssueScreen() {
 
                                     <View>
                                         <Text className="mb-1 font-semibold text-foreground">When did it start?</Text>
-                                        <TextInput
-                                            value={startedAt}
-                                            onChangeText={setStartedAt}
-                                            placeholder="YYYY-MM-DD or relative time"
-                                            className="rounded-xl bg-accent p-3 text-foreground"
-                                        />
+                                        <Pressable
+                                            onPress={() => setShowDatePicker(true)}
+                                            className="rounded-xl bg-accent p-3"
+                                        >
+                                            <Text className="text-foreground">
+                                                {startedAt || 'Select a date'}
+                                            </Text>
+                                        </Pressable>
+                                        {showDatePicker && (
+                                            <DateTimePicker
+                                                value={selectedDate}
+                                                mode="date"
+                                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                onChange={handleDateChange}
+                                                maximumDate={new Date()}
+                                            />
+                                        )}
+                                        {Platform.OS === 'ios' && showDatePicker && (
+                                            <Pressable
+                                                onPress={() => setShowDatePicker(false)}
+                                                className="mt-2 items-center rounded-xl bg-primary py-2"
+                                            >
+                                                <Text className="font-semibold text-white">Done</Text>
+                                            </Pressable>
+                                        )}
                                     </View>
 
                                     <View>

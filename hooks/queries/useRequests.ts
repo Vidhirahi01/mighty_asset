@@ -98,6 +98,8 @@ export function useEmployeeAssignedAssets(userId?: string, email?: string) {
         queryKey: queryKeys.requests.employeeAssignedAssets(keyIdentity),
         queryFn: () => getApprovedAssetsForUser({ userId, email }),
         enabled: Boolean(userId || email),
+        staleTime: 0,          
+        refetchOnMount: true,
     });
 }
 

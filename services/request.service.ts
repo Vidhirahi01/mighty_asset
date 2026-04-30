@@ -21,7 +21,10 @@ export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export type WorkflowRequestStatus =
     | RequestStatus
-    | 'PURCHASE_PENDING';
+    | 'PURCHASE_PENDING'
+    | 'RETURN_PENDING'
+    | 'RETURNED';
+
 
 export type ManagerRequestRow = {
     id: string;
@@ -52,6 +55,16 @@ export type OperationsAssignmentRequest = {
 export type RequestSummary = {
     pendingApprovals: number;
     openIssues: number;
+};
+export type AssignedAsset = {
+  assetId: string;
+  assetName: string;
+  category: string;
+  brand?: string | null;
+  modelNo?: string | null;
+  condition?: string | null;
+  note?: string | null;
+  imageUrl?: string | null;
 };
 
 export type EmployeeAssignedAsset = {
@@ -415,29 +428,25 @@ export async function getApprovedAssetsForUser(params: {
     const userId = params.userId?.trim() || null;
     const email = params.email?.trim() || null;
 
-    if (!userId && !email) {
-        return [];
-    }
+    if (!userId && !email) return [];
 
+    // ── 1. Fetch APPROVED + RETURN_PENDING rows for this user ──────────
     let query = supabase
         .from('request_table')
         .select('id, created_at, email, user_id, category, quantity, reason, status, type, asset_id')
-        .eq('status', 'APPROVED')
+        .in('status', ['APPROVED', 'RETURN_PENDING'])  // include both
         .not('asset_id', 'is', null);
 
     if (userId && email) {
         query = query.or(`user_id.eq.${userId},email.eq.${email}`);
     } else if (userId) {
         query = query.eq('user_id', userId);
-    } else if (email) {
+    } else {
         query = query.eq('email', email);
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-        throw new Error(error.message);
-    }
+    if (error) throw new Error(error.message);
 
     const approvedRows = ((data ?? []) as Array<{
         id: string;
@@ -447,7 +456,7 @@ export async function getApprovedAssetsForUser(params: {
         category: string | null;
         quantity: number | null;
         reason: string | null;
-        status: RequestStatus;
+        status: WorkflowRequestStatus;
         type: string | null;
         asset_id: string | null;
     }>).filter((row) => {
@@ -455,9 +464,7 @@ export async function getApprovedAssetsForUser(params: {
         return type === 'ASSET_REQUEST' || type === 'ASSET-REQUEST' || type === 'ASSETREQUEST';
     });
 
-    if (approvedRows.length === 0) {
-        return [];
-    }
+    if (approvedRows.length === 0) return [];
 
     const assetIds = Array.from(
         new Set(
@@ -467,6 +474,7 @@ export async function getApprovedAssetsForUser(params: {
         )
     );
 
+    // ── 2. Fetch asset details INCLUDING status — this is the source of truth ──
     let assetMap = new Map<string, {
         asset_name: string | null;
         category: string | null;
@@ -475,17 +483,16 @@ export async function getApprovedAssetsForUser(params: {
         condition: string | null;
         note: string | null;
         image_url: string | null;
+        status: string | null;  // ← added
     }>();
 
     if (assetIds.length > 0) {
         const { data: assets, error: assetError } = await supabase
             .from('asset_table')
-            .select('id, asset_name, category, brand, model_no, condition, note, image_url')
+            .select('id, asset_name, category, brand, model_no, condition, note, image_url, status') // ← added status
             .in('id', assetIds);
 
-        if (assetError) {
-            throw new Error(assetError.message);
-        }
+        if (assetError) throw new Error(assetError.message);
 
         assetMap = new Map(
             ((assets ?? []) as Array<{
@@ -497,17 +504,35 @@ export async function getApprovedAssetsForUser(params: {
                 condition: string | null;
                 note: string | null;
                 image_url: string | null;
+                status: string | null;
             }>).map((asset) => [asset.id, asset])
         );
     }
 
-    return approvedRows.map((row) => {
-        const asset = row.asset_id ? assetMap.get(row.asset_id) : undefined;
-        const fallbackCategory = row.category || 'uncategorized';
-        const displayCategory = asset?.category || fallbackCategory;
-        const assetName = asset?.asset_name || `${displayCategory} asset`;
+    // ── 3. Triple filter — all three must pass to show the asset ───────
+    const result: EmployeeAssignedAsset[] = [];
 
-        return {
+    for (const row of approvedRows) {
+        // Skip RETURN_PENDING request rows — already in return flow
+        if (row.status === 'RETURN_PENDING') continue;
+
+        if (!row.asset_id) continue;
+
+        const asset = assetMap.get(row.asset_id);
+
+        // Skip if asset doesn't exist in asset_table
+        if (!asset) continue;
+
+        // ✅ KEY FIX: skip if asset is no longer ASSIGNED in asset_table
+        // This catches already-returned assets regardless of request_table state
+        const assetStatus = String(asset.status ?? '').toUpperCase();
+        if (assetStatus !== 'ASSIGNED') continue;
+
+        const fallbackCategory = row.category || 'uncategorized';
+        const displayCategory = asset.category || fallbackCategory;
+        const assetName = asset.asset_name || `${displayCategory} asset`;
+
+        result.push({
             requestId: row.id,
             assetId: row.asset_id,
             assetName,
@@ -517,13 +542,15 @@ export async function getApprovedAssetsForUser(params: {
             approvedAt: row.created_at,
             requestedBy: row.email,
             reason: row.reason,
-            brand: asset?.brand || null,
-            modelNo: asset?.model_no || null,
-            condition: asset?.condition || null,
-            note: asset?.note || null,
-            imageUrl: asset?.image_url || null,
-        } satisfies EmployeeAssignedAsset;
-    });
+            brand: asset.brand || null,
+            modelNo: asset.model_no || null,
+            condition: asset.condition || null,
+            note: asset.note || null,
+            imageUrl: asset.image_url || null,
+        });
+    }
+
+    return result;
 }
 
 export async function getEmployeeAssetRequests(params: {
