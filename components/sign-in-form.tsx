@@ -39,14 +39,12 @@ export function SignInForm() {
 
       if (user?.password_reset === true) {
         console.log(" User NEEDS password reset - routing to reset screen");
-        // Route to password reset screen
         router.replace({
           pathname: "/(auth)/reset-password",
           params: { email, userId: user.id, role: user.role }
         } as any);
       } else {
         console.log("User does NOT need password reset - routing to dashboard");
-        // Route to role-based dashboard
         const destination = getRoleBasedRoute(user.role);
         console.log(" Destination route:", destination);
         router.replace(destination as any);

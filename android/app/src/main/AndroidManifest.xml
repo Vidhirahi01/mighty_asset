@@ -26,6 +26,7 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="my-mightyasset"/>
+        <data android:scheme="exp+my-mightyasset"/>
       </intent-filter>
     </activity>
   </application>
