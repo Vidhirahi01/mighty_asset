@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "678894635914",
+    "project_id": "mightyasset",
+    "storage_bucket": "mightyasset.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:678894635914:android:35ce00463a24867e259673",
+        "android_client_info": {
+          "package_name": "com.anonymous.mymightyAsset"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFpSKm6h7Zx-WgZzQPbev5TSmgLH_dI6g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

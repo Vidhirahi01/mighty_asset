@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "my-mightyAsset",
-    "slug": "my-mightyAsset",
+    "slug": "mymightyasset",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -16,14 +16,16 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.mymightyAsset"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.mymightyAsset"
+      "package": "com.anonymous.mymightyAsset",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -37,13 +39,21 @@
       "expo-sqlite",
       "@react-native-community/datetimepicker",
       [
-      "expo-notifications", {
-        "color": "#1b72fc"
-      }
+        "expo-notifications",
+        {
+          "color": "#1b72fc"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6f71cc99-1d3b-4227-bb20-f0925551c2e0"
+      },
+      "router": {}
+    },
+    "owner": "vidhirahi01"
   }
 }

@@ -1,4 +1,5 @@
-import { supabase } from '../lib/supabase'; // Adjust the path as needed
+import { getPushToken } from '@/lib/tokens';
+import { supabase } from '../lib/supabase'; 
 
 export const loginUser = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -12,7 +13,13 @@ export const loginUser = async (email: string, password: string) => {
 
     const userId = data.user.id;
     console.log("Auth successful. User ID:", userId);
-
+    const token = await getPushToken();
+    if(token) {
+        await supabase.from('notification_table').upsert(
+            {user_id: userId, token, type: 'device_token'},
+            {onConflict: 'user_id'}
+        );
+    }
     const { data: userData, error: userError } = await supabase
         .from("user_table")
         .select("*")

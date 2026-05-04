@@ -1,32 +1,60 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
-// Setup type definitions for built-in Supabase Runtime APIs
-import "@supabase/functions-js/edge-runtime.d.ts"
+interface WebhookPayload {
+  type: "INSERT" | "UPDATE" | "DELETE";
+  table: string;
+  record: {
+    id: string;
+    user_id: string;
+    type: string;
+    body?: string;
+    title?: string;
+    is_read: boolean;
+  };
+  schema: "public";
+}
 
-console.log("Hello from Functions!")
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
 
-Deno.serve(async (req: { json: () => PromiseLike<{ name: any }> | { name: any } }) => {
-  const { name } = await req.json()
-  const data = {
-    message: `Hello ${name}!`,
+Deno.serve(async (req) => {
+  const payload: WebhookPayload = await req.json();
+
+  if (payload.record.type === "device_token") {
+    return new Response("Skipped", { status: 200 });
   }
 
-  return new Response(
-    JSON.stringify(data),
-    { headers: { "Content-Type": "application/json" } },
-  )
-})
+  const { data: tokenRow, error } = await supabase
+    .from("notification_table")
+    .select("token")
+    .eq("user_id", payload.record.user_id)
+    .eq("type", "device_token")
+    .single();
 
-/* To invoke locally:
+  if (error || !tokenRow?.token) {
+    return new Response("No token found for user", { status: 404 });
+  }
 
-  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
-  2. Make an HTTP request:
+  const expoRes = await fetch("https://exp.host/--/api/v2/push/send", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${Deno.env.get("EXPO_ACCESS_TOKEN")}`,
+    },
+    body: JSON.stringify({
+      to: tokenRow.token,
+      sound: "default",
+      title: payload.record.title ?? "New Notification",
+      body: payload.record.body ?? "",
+      data: { type: payload.record.type },
+    }),
+  });
 
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/send-notification' \
-    --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' \
-    --header 'Content-Type: application/json' \
-    --data '{"name":"Functions"}'
-
-*/
+  const result = await expoRes.json();
+  return new Response(JSON.stringify(result), {
+    headers: { "Content-Type": "application/json" },
+  });
+});
