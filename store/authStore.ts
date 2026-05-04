@@ -42,6 +42,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         } finally {
             set({ isLoading: false });
         }
+            // Navigation should be handled by the component calling this
     },
 
     initializeAuth: async () => {

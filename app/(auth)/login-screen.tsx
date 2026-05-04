@@ -12,8 +12,7 @@ export default function LoginScreen() {
         className="flex-1 bg-background"
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 }}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
+        keyboardShouldPersistTaps="handled">
         <SignInForm />
       </ScrollView>
     </KeyboardAvoidingView>

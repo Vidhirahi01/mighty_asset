@@ -1,27 +1,18 @@
-import { SocialConnections } from '@/components/social-connections';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Text } from '@/components/ui/text';
 import * as React from 'react';
-import { Alert, Pressable, type TextInput, View, Platform } from 'react-native';
+import { Alert, type TextInput, View } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { loginUser } from '@/services/auth.service';
 import { getRoleBasedRoute } from '@/lib/navigationUtils';
 import { getPushToken } from '@/lib/tokens';
 
-
-export async function SignInForm() {
+export function SignInForm() {
   const passwordInputRef = React.useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,43 +24,36 @@ export async function SignInForm() {
 
   const onSubmit = async () => {
     try {
+      const user = await loginUser(email, password);
+
       const token = await getPushToken();
-      if (token) {
+      if (token && user?.id) {
         await supabase
           .from("user_table")
           .update({ push_token: token })
-          .eq("id", email);
+          .eq("id", user.id); // ← user.id not email
       }
-      console.log("Login attempt with email:", email);
-      const user = await loginUser(email, password);
-
-      console.log("User object:", user);
-      console.log(" password_reset value:", user?.password_reset);
 
       if (user?.password_reset === true) {
-        console.log(" User NEEDS password reset - routing to reset screen");
         router.replace({
           pathname: "/(auth)/reset-password",
           params: { email, userId: user.id, role: user.role }
         } as any);
       } else {
-        console.log("User does NOT need password reset - routing to dashboard");
         const destination = getRoleBasedRoute(user.role);
-        console.log(" Destination route:", destination);
         router.replace(destination as any);
       }
     } catch (err: any) {
-      console.error(" Login error:", err);
       Alert.alert("Login failed", err.message);
     }
-  }
+  };
 
   return (
     <View className="gap-6 w-full">
-      <Card className="bg-card sm:border-border border border-border rounded-xl shadow-md">
+      <Card className="bg-card border border-border rounded-xl shadow-md">
         <CardHeader>
-          <CardTitle className="text-center text-foreground font-bold text-2xl sm:text-left">MightyAsset</CardTitle>
-          <CardDescription className="text-center text-foreground/70 sm:text-left mt-1">
+          <CardTitle className="text-center text-foreground font-bold text-2xl">MightyAsset</CardTitle>
+          <CardDescription className="text-center text-foreground/70 mt-1">
             Welcome back! Sign in to your account
           </CardDescription>
         </CardHeader>
@@ -92,9 +76,7 @@ export async function SignInForm() {
               />
             </View>
             <View className="gap-2">
-              <View className="flex-row items-center">
-                <Label htmlFor="password" className="text-foreground font-semibold">Password</Label>
-              </View>
+              <Label htmlFor="password" className="text-foreground font-semibold">Password</Label>
               <Input
                 ref={passwordInputRef}
                 id="password"
@@ -107,11 +89,10 @@ export async function SignInForm() {
                 className="bg-accent-100 border border-border text-foreground placeholder:text-foreground/40 rounded-lg px-4 py-3"
               />
             </View>
-            <Button className="w-full bg-primary rounded-lg " onPress={onSubmit}>
+            <Button className="w-full bg-primary rounded-lg" onPress={onSubmit}>
               <Text className="text-white font-bold text-base">Sign In</Text>
             </Button>
           </View>
-
         </CardContent>
       </Card>
     </View>
