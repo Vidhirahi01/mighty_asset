@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import * as Notifications from 'expo-notifications';
-
+import { handleForegroundNotification, handleNotificationTap } from '@/lib/notifications';
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
         shouldShowBanner: true,  

@@ -135,35 +135,7 @@ function SystemActivity({ item }: { item: ActivityItem }) {
     );
 }
 
-function QuickActions({ item, onPress }: { item: QuickAction; onPress: () => void }) {
-    const getActionIcon = (label: string) => {
-        const iconProps = { size: 20, strokeWidth: 2, color: '#1b72fc' };
-        switch (label) {
-            case 'Manager Users': return <Users2 {...iconProps} />;
-            case 'System Setting': return <Settings {...iconProps} />;
-            case 'Audit Logs': return <History {...iconProps} />;
-            default: return null;
-        }
-    };
 
-    return (
-        <TouchableOpacity activeOpacity={0.4} onPress={onPress} className="w-full my-2">
-            <Card className="w-full bg-card border border-primary/20 shadow-md">
-                <CardContent className="px-4 py-4">
-                    <View className="flex-row items-start">
-                        <View className="bg-primary/10 p-2 rounded-lg mr-3">
-                            {getActionIcon(item.Label)}
-                        </View>
-                        <View className="flex-1">
-                            <Text className="text-foreground text-lg font-bold">{item.Label}</Text>
-                            <Text className="text-foreground text-xs mt-1 opacity-75">{item.description}</Text>
-                        </View>
-                    </View>
-                </CardContent>
-            </Card>
-        </TouchableOpacity>
-    );
-}
 
 function AlertsNotifys({ item }: { item: Notifys }) {
     return (
@@ -320,7 +292,6 @@ export default function Dashboard() {
                     <Text className="text-foreground text-lg font-bold ml-2">Current Activity</Text>
                 </View>
             </View>
-            {/* <Card className='p-0 mx-3 mb-3 bg-accent border border-border shadow-md'> */}
             <FlatList
                 data={activity}
                 keyExtractor={(item) => item.req}
@@ -330,26 +301,6 @@ export default function Dashboard() {
                 renderItem={({ item }) => <SystemActivity item={item} />}
                 scrollEnabled={false}
             />
-            {/* </Card> */}
-
-            <View className="px-5 py-3">
-                <View className="flex-row items-center">
-                    <Briefcase color="#1b72fc" size={18} strokeWidth={2} />
-                    <Text className="text-foreground text-lg font-bold ml-2">Quick Actions</Text>
-                </View>
-            </View>
-            <Card className='p-0 mx-3 bg-card border border-border shadow-md'>
-                <FlatList
-                    data={ACTIONS}
-                    keyExtractor={(item) => item.Label}
-                    contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 10 }}
-                    renderItem={({ item }) => (
-                        <QuickActions item={item} onPress={() => handleQuickActionPress(item)} />
-                    )}
-                    scrollEnabled={false}
-                />
-            </Card>
-
             <Card className='p-0 mx-3 mt-3 mb-4 bg-primary border border-primary shadow-md'>
                 <View className='flex-row items-center px-5 pt-5 pb-3'>
                     <BellRing color='#ffffff' size={20} strokeWidth={2} />
