@@ -3,8 +3,6 @@ import { Input } from '@/components/ui/input';
 import { Plus, ChevronDown, Save, X, Search } from 'lucide-react-native';
 import { Text, View, ScrollView, FlatList, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useState } from 'react';
-// FIX: removed useEffect — not needed anymore
-// FIX: removed fetchAllUsers, updateUser direct imports — now handled by hooks
 import CreateUserForm from './createUserForm';
 import { useUsers, useUpdateUser, User } from '@/hooks/queries/useUsers';
 
@@ -310,7 +308,7 @@ export default function UsersScreen() {
                 )}
             </ScrollView>
 
-            <View style={{ height: 160 }} />
+            <View style={{ height: 80 }} />
 
             {/*
               FIX: onSuccess was wrongly set to {useUpdateUser} (the hook itself).

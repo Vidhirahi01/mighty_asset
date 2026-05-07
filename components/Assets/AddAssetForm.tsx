@@ -228,6 +228,14 @@ export const AddAssetForm = ({ onClose, presetAction, forceClassicAddForm }: Add
 
             console.log("Inserted:", data);
 
+            const { notifyRoles } = await import('@/services/notification.service');
+            await notifyRoles(['ADMIN', 'MANAGER'], {
+                type: 'asset_created',
+                title: 'Asset Added',
+                body: `${numericQuantity} unit${numericQuantity > 1 ? 's' : ''} added for ${assetName}.`,
+                assetId: undefined,
+            }).catch(() => { });
+
             Alert.alert('Success', `${numericQuantity} unit${numericQuantity > 1 ? 's' : ''} added for ${assetName}.`);
 
             onClose();
@@ -273,6 +281,14 @@ export const AddAssetForm = ({ onClose, presetAction, forceClassicAddForm }: Add
             Alert.alert('Error', 'Failed to update stock.');
             return;
         }
+
+        const { notifyRoles } = await import('@/services/notification.service');
+        await notifyRoles(['ADMIN', 'MANAGER'], {
+            type: 'asset_updated',
+            title: 'Asset Stock Updated',
+            body: `${quantity} unit${quantity > 1 ? 's' : ''} added to ${selectedAssetRecord.asset_name}.`,
+            assetId: undefined,
+        }).catch(() => { });
 
         Alert.alert('Stock Updated', `${quantity} unit${quantity > 1 ? 's' : ''} added to ${selectedAssetRecord.asset_name}.`);
         onClose();

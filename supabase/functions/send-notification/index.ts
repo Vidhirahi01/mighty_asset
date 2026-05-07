@@ -11,6 +11,10 @@ interface WebhookPayload {
     body?: string;
     title?: string;
     is_read: boolean;
+    asset_id?: string | null;
+    repair_id?: string | null;
+    request_id?: string | null;
+    assignment_id?: string | null;
   };
   schema: "public";
 }
@@ -49,7 +53,13 @@ Deno.serve(async (req) => {
       sound: "default",
       title: payload.record.title ?? "New Notification",
       body: payload.record.body ?? "",
-      data: { type: payload.record.type },
+      data: {
+        type: payload.record.type,
+        assetId: payload.record.asset_id ?? null,
+        repairId: payload.record.repair_id ?? null,
+        requestId: payload.record.request_id ?? null,
+        assignmentId: payload.record.assignment_id ?? null,
+      },
     }),
   });
 

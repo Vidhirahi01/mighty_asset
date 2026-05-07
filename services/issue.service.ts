@@ -262,14 +262,16 @@ export async function assignIssueTechnician(params: {
 
 
 
-    const { error: repairError } = await supabase
+    const { data: repairData, error: repairError } = await supabase
         .from('repair_table')
         .insert({
             asset_id: assetId,
             technician_id: params.technicianId,
             status: params.activate ? 'ACTIVE' : 'ASSIGNED',
             notes: `Assigned from issue ${params.issueId}`,
-        });
+        })
+        .select('id')
+        .single();
 
     if (repairError) {
         throw new Error(repairError.message || 'Failed to create repair record.');
@@ -283,6 +285,26 @@ export async function assignIssueTechnician(params: {
     if (updateError) {
         throw new Error(updateError.message || 'Failed to assign technician.');
     }
+
+    const repairId = repairData?.id ? String(repairData.id) : undefined;
+    const { notifyUser, notifyByRole } = await import('@/services/notification.service');
+
+    await notifyUser({
+        userId: params.technicianId,
+        type: 'repair_assigned',
+        title: 'Repair Assigned',
+        body: 'A repair task has been assigned to you.',
+        assetId,
+        repairId,
+    }).catch(() => { });
+
+    await notifyByRole('MANAGER', {
+        type: 'repair_assigned',
+        title: 'Repair Assigned',
+        body: 'A repair task was assigned to a technician.',
+        assetId,
+        repairId,
+    }).catch(() => { });
 }
 
 export async function getIssuesForTechnician(technicianId: string): Promise<IssueListItem[]> {
@@ -390,6 +412,12 @@ export async function saveRepairProgress(params: {
             throw new Error(updateError.message || 'Failed to update repair record.');
         }
 
+        await notifyRepairIfDone({
+            repairId,
+            assetId: params.assetId,
+            status: params.status,
+        });
+
         return { id: repairId };
     }
 
@@ -403,7 +431,81 @@ export async function saveRepairProgress(params: {
         throw new Error(insertError.message || 'Failed to create repair record.');
     }
 
-    return { id: String(created.id) };
+    const newRepairId = String(created.id);
+
+    const { notifyUser, notifyByRole } = await import('@/services/notification.service');
+    await notifyUser({
+        userId: params.technicianId,
+        type: 'repair_assigned',
+        title: 'Repair Created',
+        body: 'A repair task was created.',
+        assetId: params.assetId,
+        repairId: newRepairId,
+    }).catch(() => { });
+
+    await notifyByRole('MANAGER', {
+        type: 'repair_assigned',
+        title: 'Repair Created',
+        body: 'A repair task was created.',
+        assetId: params.assetId,
+        repairId: newRepairId,
+    }).catch(() => { });
+
+    await notifyRepairIfDone({
+        repairId: newRepairId,
+        assetId: params.assetId,
+        status: params.status,
+    });
+
+    return { id: newRepairId };
+}
+
+async function notifyRepairIfDone(params: {
+    repairId: string;
+    assetId: string;
+    status: string;
+}) {
+    const doneStatuses = new Set(['RESOLVED', 'UNREPAIRABLE', 'DONE', 'COMPLETED']);
+    const status = String(params.status ?? '').trim().toUpperCase();
+
+    if (!doneStatuses.has(status)) {
+        return;
+    }
+
+    try {
+        const { data: issueRow, error } = await supabase
+            .from('issues_table')
+            .select('reported_by')
+            .eq('asset_id', params.assetId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (error) throw error;
+
+        const { notifyUser, notifyByRole } = await import('@/services/notification.service');
+
+        await notifyByRole('MANAGER', {
+            type: 'repair_done',
+            title: 'Repair Completed',
+            body: 'A repair task has been marked as done.',
+            assetId: params.assetId,
+            repairId: params.repairId,
+        }).catch(() => { });
+
+        if (issueRow?.reported_by) {
+            await notifyUser({
+                userId: String(issueRow.reported_by),
+                type: 'repair_done',
+                title: 'Repair Completed',
+                body: 'Your reported issue has been resolved.',
+                assetId: params.assetId,
+                repairId: params.repairId,
+            }).catch(() => { });
+        }
+    } catch {
+        return;
+    }
 }
 
 export async function getIssueTechnicians(): Promise<TechnicianUser[]> {

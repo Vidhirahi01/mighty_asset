@@ -57,7 +57,7 @@ export default function ReturnAssetScreen() {
     const [returnReason, setReturnReason] = useState<SelectOption | undefined>(undefined);
     const [assetCondition, setAssetCondition] = useState<SelectOption | undefined>(undefined);
     const [isSubmitting, setIsSubmitting] = useState(false);
- 
+
     const assignedAssets = useMemo(
         () => assignedRows
             .filter((item) => Boolean(item.assetId))
@@ -96,67 +96,79 @@ export default function ReturnAssetScreen() {
     };
 
     const handleSubmit = async () => {
-    if (!selectedAsset) {
-        Alert.alert('Select Asset', 'Please select an asset to return.');
-        return;
-    }
-
-    setIsSubmitting(true);
-    try {
-        const { data: authData } = await supabase.auth.getUser();
-        const requesterId = authData.user?.id ?? null;
-        const requesterEmail = authData.user?.email ?? null;
-
-        const summary = [
-            `Asset ID: ${selectedAsset.id}`,
-            `Reason: ${returnReason?.label ?? 'Not specified'}`,
-            `Condition: ${assetCondition?.label ?? 'Not specified'}`,
-        ].join('\n');
-
-        const payload = {
-            type: 'return-asset',
-            user_id: requesterId,
-            email: requesterEmail,
-            asset_id: selectedAsset.id,
-            category: selectedAsset.category ?? null,
-            brand: selectedAsset.brand ?? null,
-            model_no: selectedAsset.model_no ?? null,
-            quantity: 1,
-            reason: summary,
-            status: 'PENDING',
-        };
-
-        const { error } = await supabase.from('request_table').insert([payload]);
-        if (error) {
-            Alert.alert('Error', error.message || 'Failed to submit return request.');
+        if (!selectedAsset) {
+            Alert.alert('Select Asset', 'Please select an asset to return.');
             return;
         }
 
-        const { error: updateError } = await supabase
-            .from('request_table')
-            .update({ status: 'RETURN_PENDING' })
-            .eq('asset_id', selectedAsset.id)
-            .eq('status', 'APPROVED')
-            .eq('type', 'ASSET_REQUEST');
+        setIsSubmitting(true);
+        try {
+            const { data: authData } = await supabase.auth.getUser();
+            const requesterId = authData.user?.id ?? null;
+            const requesterEmail = authData.user?.email ?? null;
 
-        if (updateError) {
-            console.warn('Could not mark assignment as return pending:', updateError.message);
+            const summary = [
+                `Asset ID: ${selectedAsset.id}`,
+                `Reason: ${returnReason?.label ?? 'Not specified'}`,
+                `Condition: ${assetCondition?.label ?? 'Not specified'}`,
+            ].join('\n');
+
+            const payload = {
+                type: 'return-asset',
+                user_id: requesterId,
+                email: requesterEmail,
+                asset_id: selectedAsset.id,
+                category: selectedAsset.category ?? null,
+                brand: selectedAsset.brand ?? null,
+                model_no: selectedAsset.model_no ?? null,
+                quantity: 1,
+                reason: summary,
+                status: 'PENDING',
+            };
+
+            const { data: createdRequest, error } = await supabase
+                .from('request_table')
+                .insert([payload])
+                .select('id')
+                .single();
+            if (error) {
+                Alert.alert('Error', error.message || 'Failed to submit return request.');
+                return;
+            }
+
+            const { notifyRoles } = await import('@/services/notification.service');
+            await notifyRoles(['MANAGER', 'OPERATION'], {
+                type: 'return_requested',
+                title: 'Return Requested',
+                body: `${requesterEmail ?? 'Employee'} requested an asset return.`,
+                requestId: createdRequest?.id ? String(createdRequest.id) : undefined,
+            }).catch(() => { });
+
+            const { error: updateError } = await supabase
+                .from('request_table')
+                .update({ status: 'RETURN_PENDING' })
+                .eq('asset_id', selectedAsset.id)
+                .eq('status', 'APPROVED')
+                .eq('type', 'ASSET_REQUEST');
+
+            if (updateError) {
+                console.warn('Could not mark assignment as return pending:', updateError.message);
+            }
+
+            queryClient.invalidateQueries({ queryKey: ['requests', 'employee-assigned-assets'] });
+            queryClient.invalidateQueries({ queryKey: ['requests', 'employee-asset-requests'] });
+
+            if (requesterId) {
+                queryClient.invalidateQueries({ queryKey: queryKeys.requests.list(requesterId) });
+            }
+            queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
+
+            Alert.alert('Return Submitted', 'Your return request has been submitted.');
+            resetForm();
+        } finally {
+            setIsSubmitting(false);
         }
-
-        queryClient.invalidateQueries({ queryKey: ['requests', 'employee-assigned-assets'] });
-        queryClient.invalidateQueries({ queryKey: ['requests', 'employee-asset-requests'] });
-
-        if (requesterId) {
-            queryClient.invalidateQueries({ queryKey: queryKeys.requests.list(requesterId) });
-        }
-        queryClient.invalidateQueries({ queryKey: queryKeys.requests.all });
-
-        Alert.alert('Return Submitted', 'Your return request has been submitted.');
-        resetForm();
-    } finally {
-        setIsSubmitting(false);
-    }
-};
+    };
 
     return (
         <FlatList

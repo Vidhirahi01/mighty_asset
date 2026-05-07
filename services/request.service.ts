@@ -57,14 +57,14 @@ export type RequestSummary = {
     openIssues: number;
 };
 export type AssignedAsset = {
-  assetId: string;
-  assetName: string;
-  category: string;
-  brand?: string | null;
-  modelNo?: string | null;
-  condition?: string | null;
-  note?: string | null;
-  imageUrl?: string | null;
+    assetId: string;
+    assetName: string;
+    category: string;
+    brand?: string | null;
+    modelNo?: string | null;
+    condition?: string | null;
+    note?: string | null;
+    imageUrl?: string | null;
 };
 
 export type EmployeeAssignedAsset = {
@@ -185,6 +185,15 @@ export async function submitAssetRequest(input: CreateAssetRequestInput): Promis
     const { error } = await supabase.from('request_table').insert(rows);
     if (error) throw new Error(error.message);
 
+    if (!error) {
+        const { notifyRoles } = await import('@/services/notification.service');
+        await notifyRoles(['MANAGER', 'OPERATION'], {
+            type: 'request_created',
+            title: 'New Asset Request',
+            body: `${input.email.split('@')[0]} requested ${categoriesToInsert.join(', ')}`,
+            requestId: undefined,
+        }).catch(() => { });
+    }
     return {
         submittedCount: rows.length,
         skippedCategories: pendingCategories,
@@ -253,6 +262,37 @@ export async function updateWorkflowRequestStatus(requestId: string, status: Wor
         .eq('id', requestId);
 
     if (error) throw new Error(error.message);
+
+    if (status === 'APPROVED' || status === 'REJECTED') {
+        const { data: requestRow } = await supabase
+            .from('request_table')
+            .select('user_id, category')
+            .eq('id', requestId)
+            .single();
+
+        if (requestRow?.user_id) {
+            const { notifyUser } = await import('@/services/notification.service');
+            await notifyUser({
+                userId: requestRow.user_id,
+                type: `request_${status.toLowerCase()}`,
+                title: status === 'APPROVED' ? 'Request Approved' : 'Request Rejected',
+                body: status === 'APPROVED'
+                    ? `Your ${requestRow.category} request has been approved`
+                    : `Your ${requestRow.category} request was rejected`,
+                requestId,
+            });
+        }
+    }
+
+    if (status === 'PURCHASE_PENDING') {
+        const { notifyByRole } = await import('@/services/notification.service');
+        await notifyByRole('OPERATION', {
+            type: 'purchase_pending',
+            title: '🛒 New Purchase Request',
+            body: 'A request has been queued for procurement',
+            requestId,
+        });
+    }
 }
 
 export async function getOperationsAssignmentRequests(): Promise<OperationsAssignmentRequest[]> {
@@ -391,6 +431,37 @@ export async function assignAssetToEmployee(input: {
     if (requestUpdateError) {
         throw new Error(requestUpdateError.message || 'Failed to update request assignment.');
     }
+
+    let assigneeUserId = input.assigneeUserId ?? null;
+    if (!assigneeUserId && input.assigneeEmail) {
+        try {
+            const assigneeUser = await getUserByEmail(input.assigneeEmail);
+            assigneeUserId = assigneeUser?.id ?? null;
+        } catch {
+            assigneeUserId = null;
+        }
+    }
+
+    const { notifyUser, notifyRoles } = await import('@/services/notification.service');
+
+    if (assigneeUserId) {
+        await notifyUser({
+            userId: assigneeUserId,
+            type: 'asset_assigned',
+            title: 'Asset Assigned',
+            body: 'An asset has been assigned to you.',
+            assetId: input.assetId,
+            requestId: input.requestId,
+        }).catch(() => { });
+    }
+
+    await notifyRoles(['ADMIN', 'MANAGER'], {
+        type: 'asset_updated',
+        title: 'Asset Assigned',
+        body: 'An asset was assigned to a user.',
+        assetId: input.assetId,
+        requestId: input.requestId,
+    }).catch(() => { });
 }
 
 export async function getRequestSummary(): Promise<RequestSummary> {
@@ -430,11 +501,10 @@ export async function getApprovedAssetsForUser(params: {
 
     if (!userId && !email) return [];
 
-    // ── 1. Fetch APPROVED + RETURN_PENDING rows for this user ──────────
     let query = supabase
         .from('request_table')
         .select('id, created_at, email, user_id, category, quantity, reason, status, type, asset_id')
-        .in('status', ['APPROVED', 'RETURN_PENDING'])  // include both
+        .in('status', ['APPROVED', 'RETURN_PENDING'])
         .not('asset_id', 'is', null);
 
     if (userId && email) {
@@ -474,7 +544,6 @@ export async function getApprovedAssetsForUser(params: {
         )
     );
 
-    // ── 2. Fetch asset details INCLUDING status — this is the source of truth ──
     let assetMap = new Map<string, {
         asset_name: string | null;
         category: string | null;
@@ -508,23 +577,17 @@ export async function getApprovedAssetsForUser(params: {
             }>).map((asset) => [asset.id, asset])
         );
     }
-
-    // ── 3. Triple filter — all three must pass to show the asset ───────
     const result: EmployeeAssignedAsset[] = [];
 
     for (const row of approvedRows) {
-        // Skip RETURN_PENDING request rows — already in return flow
         if (row.status === 'RETURN_PENDING') continue;
 
         if (!row.asset_id) continue;
 
         const asset = assetMap.get(row.asset_id);
 
-        // Skip if asset doesn't exist in asset_table
         if (!asset) continue;
 
-        // ✅ KEY FIX: skip if asset is no longer ASSIGNED in asset_table
-        // This catches already-returned assets regardless of request_table state
         const assetStatus = String(asset.status ?? '').toUpperCase();
         if (assetStatus !== 'ASSIGNED') continue;
 
@@ -767,12 +830,21 @@ export async function approveReturnRequest(requestId: string) {
 
     if (assetUpdateError) throw new Error(assetUpdateError.message);
 
+    const { notifyRoles } = await import('@/services/notification.service');
+    await notifyRoles(['ADMIN', 'MANAGER'], {
+        type: 'asset_updated',
+        title: 'Asset Returned',
+        body: 'An asset return was approved and marked available.',
+        assetId,
+        requestId,
+    }).catch(() => { });
+
     try {
         const { data: assignedRequests, error: assignedReqError } = await supabase
             .from('request_table')
             .select('id, reason')
             .eq('asset_id', assetId)
-            .in('status', ['APPROVED', 'RETURN_PENDING']); 
+            .in('status', ['APPROVED', 'RETURN_PENDING']);
 
         if (assignedReqError) throw assignedReqError;
 
