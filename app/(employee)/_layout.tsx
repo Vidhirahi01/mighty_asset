@@ -1,40 +1,26 @@
 import { Tabs } from 'expo-router';
-import { User, LogOut, PackagePlus, AlertCircle } from 'lucide-react-native';
+import { User, PackagePlus, AlertCircle } from 'lucide-react-native';
 import { NAV_THEME } from '@/lib/theme';
 import React, { useState } from 'react';
-import { View, Alert, Pressable } from 'react-native';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '@/lib/supabase';
 import { PortalHost } from '@rn-primitives/portal';
+import { useAuthStore } from '@/store/authStore';
+import { LogoutButton } from '@/components/shared/LogoutButton';
+import { LogoutModal } from '@/components/shared/LogoutModal';
 
 export default function EmployeeLayout() {
     const { colors } = NAV_THEME;
     const router = useRouter();
-    const [loggingOut, setLoggingOut] = useState(false);
+    const { logout, isLoading } = useAuthStore();
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
 
     const handleLogout = async () => {
         try {
-            Alert.alert('Logout', 'Are you sure you want to logout?', [
-                {
-                    text: 'Cancel',
-                    onPress: () => { },
-                    style: 'cancel',
-                },
-                {
-                    text: 'Logout',
-                    onPress: async () => {
-                        setLoggingOut(true);
-                        await supabase.auth.signOut();
-                        router.replace('/(auth)/login-screen');
-                    },
-                    style: 'destructive',
-                },
-            ]);
+            await logout();
+            router.replace('/(auth)/login-screen');
         } catch (error) {
-            Alert.alert('Error', 'Failed to logout');
-            console.error(error);
-        } finally {
-            setLoggingOut(false);
+            console.error('Logout error:', error);
         }
     };
 
@@ -124,9 +110,7 @@ export default function EmployeeLayout() {
                     ),
 
                     headerRight: () => (
-                        <Pressable onPress={handleLogout} disabled={loggingOut} className="mr-4 p-2">
-                            <LogOut size={20} color={colors.primary} strokeWidth={2} />
-                        </Pressable>
+                        <LogoutButton onPress={() => setShowLogoutModal(true)} />
                     ),
                 }}
             >
@@ -147,7 +131,7 @@ export default function EmployeeLayout() {
                     }}
                 />
                 <Tabs.Screen
-                    name= "issues"
+                    name="issues"
                     options={{
                         title: 'Issue Handling',
                         tabBarLabel: 'Issues',
@@ -175,9 +159,15 @@ export default function EmployeeLayout() {
                         href: null,
                     }}
                 />
-                
+
             </Tabs>
             <PortalHost />
+            <LogoutModal
+                visible={showLogoutModal}
+                onConfirm={handleLogout}
+                onCancel={() => setShowLogoutModal(false)}
+                loggingOut={isLoading}
+            />
         </View>
     );
 }

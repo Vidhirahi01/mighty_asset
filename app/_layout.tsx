@@ -9,8 +9,8 @@ import * as Notifications from 'expo-notifications';
 import { handleForegroundNotification, handleNotificationTap } from '@/lib/notifications';
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
-        shouldShowBanner: true,  
-        shouldShowList: true,  
+        shouldShowBanner: true,
+        shouldShowList: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
     }),
@@ -30,6 +30,9 @@ export default function RootLayout() {
     const setUser = useAuthStore((state) => state.setUser);
 
     useEffect(() => {
+        const foregroundSubscription = handleForegroundNotification();
+        const responseSubscription = handleNotificationTap();
+
         initializeAuth();
 
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -47,6 +50,8 @@ export default function RootLayout() {
 
         return () => {
             authListener.subscription.unsubscribe();
+            foregroundSubscription.remove();
+            responseSubscription.remove();
         };
     }, [initializeAuth, setUser]);
 

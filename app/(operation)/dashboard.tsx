@@ -20,6 +20,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RightDrawer } from '@/components/RightDrawer';
 import { AddAssetForm } from '@/components/Assets/AddAssetForm';
 import { useAssets } from '@/hooks/queries/useAssets';
+import { useOperationsAssignmentRequests } from '@/hooks/queries/useRequests';
+import { useReturnRequests } from '@/hooks/queries/useReturnRequests';
 
 type StatItem = {
     label: string;
@@ -49,38 +51,16 @@ const ACTIONS: actions[] = [
     { label: 'View all' },
     { label: 'Inventory' },
 ]
-const PENDING_CRITICAL_ACTIONS: PendingAction[] = [
-    {
-        id: '1',
-        title: 'Asset Movement Authorization Pending',
-        product_id: 'PROD-001',
-        reportedBy: 'John Doe',
-        actionType: 'assign',
-        actionId: 'ASSIGN-001',
-        severity: 'Critical',
-        timeStamp: '15 mins ago',
-    },
-    {
-        id: '2',
-        title: 'High-Value Equipment Under Review',
-        product_id: 'PROD-002',
-        reportedBy: 'Sarah Johnson',
-        actionType: 'return',
-        actionId: 'RETURN-001',
-        severity: 'Critical',
-        timeStamp: '32 mins ago',
-    },
-    {
-        id: '3',
-        title: 'Return Queue Processing Required',
-        product_id: 'PROD-003',
-        reportedBy: 'Mike Wilson',
-        actionType: 'return',
-        actionId: 'RETURN-002',
-        severity: 'Critical',
-        timeStamp: '1 hour ago',
-    },
-];
+const relativeTime = (value: string) => {
+    const ts = new Date(value).getTime();
+    if (!Number.isFinite(ts)) return 'Unknown time';
+    const diff = Math.max(1, Math.floor((Date.now() - ts) / (1000 * 60)));
+    if (diff < 60) return `${diff} min ago`;
+    const hr = Math.floor(diff / 60);
+    if (hr < 24) return `${hr} hr ago`;
+    const day = Math.floor(hr / 24);
+    return `${day} day${day > 1 ? 's' : ''} ago`;
+};
 function MyCard({ item }: { item: StatItem }) {
     const getIcon = (label: string) => {
         const iconProps = { size: 24, color: '#ffffff', strokeWidth: 2 };
@@ -198,6 +178,8 @@ export default function OperationDashboard() {
     const router = useRouter();
 
     const { data: rawAssets = [], error: assetsError } = useAssets();
+    const { data: assignmentQueue = [] } = useOperationsAssignmentRequests();
+    const { data: returnRequests = [] } = useReturnRequests();
     const { openAddAsset, stockAction } = useLocalSearchParams<{ openAddAsset?: string; stockAction?: StockActionMode }>();
     const stats = React.useMemo(() => {
         const total = rawAssets.length;
@@ -229,6 +211,43 @@ export default function OperationDashboard() {
             router.setParams({ openAddAsset: undefined, stockAction: undefined });
         }
     }, [openAddAsset, router, stockAction]);
+
+    const pendingActions = React.useMemo<PendingAction[]>(() => {
+        const assignmentActions = assignmentQueue.map((item) => {
+            const status = String(item.status ?? '').toUpperCase();
+            const isPurchase = status === 'PURCHASE_PENDING';
+            const title = isPurchase
+                ? 'Purchase Request Pending'
+                : 'Asset Assignment Required';
+
+            return {
+                id: item.id,
+                title,
+                product_id: item.category ?? 'Uncategorized',
+                reportedBy: item.requester_name || item.email || 'Unknown',
+                actionType: 'assign',
+                actionId: item.id,
+                severity: 'Critical',
+                timeStamp: relativeTime(item.created_at),
+            } satisfies PendingAction;
+        });
+
+        const returnActions = returnRequests
+            .filter((item) => String(item.type ?? '').toLowerCase() === 'return-asset')
+            .filter((item) => String(item.status ?? '').toUpperCase() !== 'APPROVED')
+            .map((item) => ({
+                id: item.id,
+                title: 'Return Request Pending',
+                product_id: item.asset_name || item.asset_id || item.category || 'Unknown Asset',
+                reportedBy: item.email || 'Unknown',
+                actionType: 'return',
+                actionId: item.id,
+                severity: 'Critical',
+                timeStamp: relativeTime(item.created_at),
+            } satisfies PendingAction));
+
+        return [...assignmentActions, ...returnActions];
+    }, [assignmentQueue, returnRequests]);
 
     const handleQuickActionPress = (label: string) => {
         switch (label) {
@@ -279,15 +298,21 @@ export default function OperationDashboard() {
                                         Pending Critical Actions
                                     </CardTitle>
                                     <CardDescription className="text-foreground/60">
-                                        {PENDING_CRITICAL_ACTIONS.length} actions require attention
+                                        {pendingActions.length} actions require attention
                                     </CardDescription>
                                 </View>
                             </View>
                         </CardHeader>
                         <CardContent className="p-0">
-                            {PENDING_CRITICAL_ACTIONS.map((item) => (
-                                <PendingActionItem key={item.id} action={item} />
-                            ))}
+                            {pendingActions.length === 0 ? (
+                                <View className="px-4 py-6">
+                                    <Text className="text-foreground/60 text-sm">No pending critical actions.</Text>
+                                </View>
+                            ) : (
+                                pendingActions.map((item) => (
+                                    <PendingActionItem key={item.id} action={item} />
+                                ))
+                            )}
                         </CardContent>
                     </Card>
 

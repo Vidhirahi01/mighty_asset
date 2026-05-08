@@ -1,36 +1,27 @@
 import { Tabs, useRouter } from 'expo-router';
-import { Home, CheckSquare, Package, Gauge, LogOut } from 'lucide-react-native';
-import React from 'react';
-import { View, Pressable, Alert } from 'react-native';
+import { Home, CheckSquare, Package, Gauge } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { View } from 'react-native';
 import { useTabScreenOptions } from '@/hooks/useTabScreenOptions';
 import { useTheme } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
+import { LogoutButton } from '@/components/shared/LogoutButton';
+import { LogoutModal } from '@/components/shared/LogoutModal';
 
 export default function ManagerLayout() {
     const baseScreenOptions = useTabScreenOptions();
     const { colors } = useTheme();
     const router = useRouter();
     const { logout, isLoading } = useAuthStore();
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
 
     const handleLogout = async () => {
-        Alert.alert('Logout', 'Are you sure you want to logout?', [
-            {
-                text: 'Cancel',
-                style: 'cancel',
-            },
-            {
-                text: 'Logout',
-                onPress: async () => {
-                    try {
-                        await logout();
-                        router.replace('/(auth)/login-screen');
-                    } catch (error) {
-                        Alert.alert('Error', 'Failed to logout');
-                    }
-                },
-                style: 'destructive',
-            },
-        ]);
+        try {
+            await logout();
+            router.replace('/(auth)/login-screen');
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
     };
 
     return (
@@ -119,17 +110,7 @@ export default function ManagerLayout() {
                     ),
 
                     headerRight: () => (
-                        <Pressable
-                            onPress={handleLogout}
-                            disabled={isLoading}
-                            className="mr-4 p-2"
-                        >
-                            <LogOut
-                                size={20}
-                                color={colors.primary}
-                                strokeWidth={2}
-                            />
-                        </Pressable>
+                        <LogoutButton onPress={() => setShowLogoutModal(true)} />
                     ),
                 }}
             >
@@ -166,6 +147,13 @@ export default function ManagerLayout() {
                     }}
                 />
             </Tabs>
+
+            <LogoutModal
+                visible={showLogoutModal}
+                onConfirm={handleLogout}
+                onCancel={() => setShowLogoutModal(false)}
+                loggingOut={isLoading}
+            />
         </View>
     );
 }

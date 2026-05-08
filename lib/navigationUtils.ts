@@ -1,8 +1,3 @@
-/**
- * Gets the appropriate navigation route based on user role
- * @param role - User's role (ADMIN, MANAGER, TECHNICIAN, EMPLOYEE, etc.)
- * @returns Navigation path for the role
- */
 export const getRoleBasedRoute = (role: string | undefined): string => {
     if (!role) return "/(tabs)/";
 
@@ -21,13 +16,7 @@ export const getRoleBasedRoute = (role: string | undefined): string => {
             return "/(tabs)/";
     }
 };
-   
-/**
- * Gets the appropriate navigation route based on user role and department
- * @param role - User's role
- * @param department - User's department
- * @returns Navigation path for the role/department combination
- */
+
 export const getRoleBasedRouteWithDepartment = (
     role: string | undefined,
     department: string | undefined

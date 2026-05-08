@@ -132,41 +132,61 @@ export const NewAssetModeFields = ({
                 </View>
             ) : (
                 <>
-                    <TextInput
-                        placeholder="Asset Name"
-                        value={assetName}
-                        onChangeText={setAssetName}
-                        className="text-lg font-semibold border-b border-border mb-4 pb-1 text-foreground"
-                    />
+                    <View className="mb-4">
+                        <Text className="mb-1 font-semibold text-foreground">Asset Name</Text>
+                        <TextInput
+                            placeholder="Enter asset name"
+                            placeholderTextColor="#9ca3af"
+                            value={assetName}
+                            onChangeText={setAssetName}
+                            className="text-lg font-semibold border-b border-border pb-1 text-foreground"
+                        />
+                    </View>
 
-                    <TextInput
-                        placeholder="Brand/Manufacturer"
-                        value={brand}
-                        onChangeText={setBrand}
-                        className="text-base border-b border-border mb-4 pb-1 text-foreground"
-                    />
+                    <View className="mb-4">
+                        <Text className="mb-1 font-semibold text-foreground">Brand/Manufacturer</Text>
+                        <TextInput
+                            placeholder="Enter brand"
+                            placeholderTextColor="#9ca3af"
+                            value={brand}
+                            onChangeText={setBrand}
+                            className="text-base border-b border-border pb-1 text-foreground"
+                        />
+                    </View>
 
-                    <TextInput
-                        placeholder="Model No"
-                        value={modelNo}
-                        onChangeText={setModelNo}
-                        className="text-base border-b border-border mb-4 pb-1 text-foreground"
-                    />
+                    <View className="mb-4">
+                        <Text className="mb-1 font-semibold text-foreground">Model No</Text>
+                        <TextInput
+                            placeholder="Enter model number"
+                            placeholderTextColor="#9ca3af"
+                            value={modelNo}
+                            onChangeText={setModelNo}
+                            className="text-base border-b border-border pb-1 text-foreground"
+                        />
+                    </View>
 
-                    <TextInput
-                        placeholder="Serial No"
-                        value={serialNo}
-                        onChangeText={setSerialNo}
-                        className="text-base border-b border-border mb-4 pb-1 text-foreground"
-                    />
+                    <View className="mb-4">
+                        <Text className="mb-1 font-semibold text-foreground">Serial No</Text>
+                        <TextInput
+                            placeholder="Enter serial number"
+                            placeholderTextColor="#9ca3af"
+                            value={serialNo}
+                            onChangeText={setSerialNo}
+                            className="text-base border-b border-border pb-1 text-foreground"
+                        />
+                    </View>
 
-                    <TextInput
-                        placeholder="Asset ID"
-                        value={assetId}
-                        editable={false}
-                        selectTextOnFocus={false}
-                        className="text-base border-b border-border mb-4 pb-1 text-foreground bg-accent"
-                    />
+                    <View className="mb-4">
+                        <Text className="mb-1 font-semibold text-foreground">Asset ID</Text>
+                        <TextInput
+                            placeholder="Auto-generated"
+                            placeholderTextColor="#9ca3af"
+                            value={assetId}
+                            editable={false}
+                            selectTextOnFocus={false}
+                            className="text-base border-b border-border pb-1 text-foreground bg-accent"
+                        />
+                    </View>
                 </>
             )}
 
@@ -215,13 +235,17 @@ export const NewAssetModeFields = ({
                 />
             )}
 
-            <TextInput
-                placeholder="Price"
-                value={price}
-                onChangeText={setPrice}
-                keyboardType="numeric"
-                className="text-base border-b border-border mb-4 pb-1 text-foreground"
-            />
+            <View className="mb-4">
+                <Text className="mb-1 font-semibold text-foreground">Price</Text>
+                <TextInput
+                    placeholder="Enter purchase price"
+                    placeholderTextColor="#9ca3af"
+                    value={price}
+                    onChangeText={setPrice}
+                    keyboardType="numeric"
+                    className="text-base border-b border-border pb-1 text-foreground"
+                />
+            </View>
 
             <View className="mb-4">
                 <NumberIncrementer label="Quantity" value={quantity} onChange={setQuantity} min={0} max={9999} step={1} />
